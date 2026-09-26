@@ -4,7 +4,7 @@ Disconnected-first emergency coordination prototype for a simulated Mangaluru co
 
 ## Run
 
-Open `index.html` in a current Chromium-based browser. There is no build step. The OpenStreetMap basemap and optional Gemini assistant need internet access; the map falls back to a labeled scenario grid if Leaflet or map tiles are unavailable.
+Open `index.html` in a current Chromium-based browser. There is no build step. After its first successful load, the app shell and SOS reports are available offline on GitHub Pages or localhost. OpenStreetMap tiles and optional Gemini answers need internet access; the map falls back to its labeled scenario view offline.
 
 Live demo: <https://supreetvardhamane.github.io/resqlens/>
 
@@ -12,10 +12,10 @@ For a local web server, run `python -m http.server 8000` from this directory and
 
 ## Demo Flow
 
-- `Command Post` shows the Mangaluru incident queue, tactical map, trust/provenance, resource matches, and knowledge graph.
-- `P2P Mesh View` shows five simulated relay hops, outage/reconnect controls, duplicate suppression, and a timestamped packet log.
-- `Citizen Offline SOS` creates a new simulated incident that appears in the command queue.
-- `Run Demo` walks through outage, peer relay, graph, matching, and reconnection.
+- `Command` shows the Mangaluru incident queue, tactical map, trust/provenance, resource matches, and knowledge graph.
+- `Report SOS` saves a signed report to IndexedDB (localStorage fallback), then opens the Command queue.
+- `Relay` shows five simulated relay hops, outage/reconnect controls, duplicate suppression, and a timestamped packet log.
+- `RAISE SOS` creates a default flood report from any view. `Run Guided Demo` walks through outage, relay, graph, matching, and local save.
 - The Trust panel can inspect an Ed25519-signed packet and export CAP XML / GeoJSON test data.
 
 See [RESQMESH_DEMO_GUIDE.md](RESQMESH_DEMO_GUIDE.md) for the timed judge walkthrough.
@@ -26,4 +26,4 @@ See [RESQMESH_DEMO_GUIDE.md](RESQMESH_DEMO_GUIDE.md) for the timed judge walkthr
 
 ## Demo Safety
 
-Incidents, confidence values, facility capacity, routes, responders, and ETAs are mock data around real Mangaluru place-name references. The map uses approximate coordinates and is not a live hazard or dispatch feed. BLE/Wi-Fi relaying and offline storage are not implemented; the P2P flow is simulated in the UI. Ed25519 keys are ephemeral to the tab and do not provide production identity management. CAP exports are `Test` / `Private` and must not be used as public alerts. Gemini is optional; use only a disposable demo key because the browser sends it directly to Google's API.
+Incidents, confidence values, facility capacity, routes, responders, and ETAs are mock data around real Mangaluru place-name references. The map uses approximate coordinates and is not a live hazard or dispatch feed. The service worker caches same-origin app files and SOS records persist locally, but BLE/Wi-Fi relaying and server sync are simulated in the UI. Offline support begins after one successful load. Ed25519 keys are ephemeral to the tab and do not provide production identity management. CAP exports are `Test` / `Private` and must not be used as public alerts. Gemini is optional; use only a disposable demo key because the browser sends it directly to Google's API.

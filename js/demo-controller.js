@@ -39,7 +39,7 @@ const DemoController = (function() {
     },
     {
       tab: 'match',
-      status: 'Synced',
+      status: 'Delivered · demo',
       hops: 5,
       nodes: 5,
       title: 'Step 5 · Reconnection, Rerouting & CAP 1.2 Sync',

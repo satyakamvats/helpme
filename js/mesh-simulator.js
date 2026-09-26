@@ -69,7 +69,9 @@ const MeshSimulator = (function() {
     const sel = state.selected;
     if (sel) {
       const isLast = index === window.MESH_NODES.length - 1;
-      const status = isLast ? (state.outage ? 'Queued for sync' : 'Synced') : index === 0 ? 'Queued' : 'Relaying';
+      const status = isLast
+        ? (state.outage || !navigator.onLine ? 'Saved locally' : 'Delivered · demo')
+        : index === 0 ? 'Queued' : 'Relaying · demo';
       sel.hops = index;
       sel.ttl = Math.max(0, 7 - index);
       sel.status = status;
@@ -86,8 +88,10 @@ const MeshSimulator = (function() {
 
     appendLog(`${window.MESH_NODES[index].title}: ${index === 0 ? 'packet created' : index === window.MESH_NODES.length - 1 ? 'delivery acknowledged' : 'packet received and forwarded'}.`);
     
-    if (index === window.MESH_NODES.length - 1 && !state.outage) {
-      appendLog('Incident synced to Collector HQ digital backbone. Resource matching initiated.');
+    if (index === window.MESH_NODES.length - 1) {
+      appendLog(state.outage || !navigator.onLine
+        ? 'Relay demo ended. SOS remains saved locally; no network sync occurred.'
+        : 'Relay simulation reached Collector HQ. No live dispatch or server sync occurred.');
       if (window.ResQAudio) ResQAudio.playSyncChime();
     }
   }
@@ -158,13 +162,19 @@ const MeshSimulator = (function() {
   }
 
   function restoreLink() {
+    if (!navigator.onLine) {
+      ResQState.setOutage(false);
+      appendLog('Browser is still offline. Reports remain saved on this device.');
+      ResQState.notify('render_all');
+      return;
+    }
     if (window.setOutageState) window.setOutageState(false);
     else ResQState.setOutage(false);
     let synced = 0;
     const state = ResQState.get();
     state.sosData.forEach(s => {
       if (s.status === 'Queued for sync' || s.status === 'Queued offline') {
-        s.status = 'Synced';
+        s.status = 'Delivered · demo';
         synced++;
       }
     });
@@ -172,12 +182,12 @@ const MeshSimulator = (function() {
     if (state.selected && state.relayOverride && state.relayOverride.id === state.selected.id && state.relayOverride.status.startsWith('Queued')) {
       ResQState.setRelayOverride({
         ...state.relayOverride,
-        status: 'Synced',
+        status: 'Delivered · demo',
         activeNodes: 5
       });
     }
 
-    appendLog(synced ? `${synced} queued incident(s) synced to Collector HQ.` : 'Internet link restored. Mesh standing by.');
+    appendLog(synced ? `${synced} saved incident(s) advanced in the relay demo. No server sync occurred.` : 'Outage simulation ended. Reports remain saved locally.');
     if (window.ResQAudio) ResQAudio.playSyncChime();
     ResQState.notify('render_all');
   }

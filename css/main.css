@@ -360,4 +360,37 @@ header {
   #syncPill {
     display: none;
   }
+  #netPill .txt,
+  #demoBtn .txt {
+    display: inline;
+    font-size: 10px;
+  }
+}
+
+.btn-sos:disabled {
+  opacity: 0.65;
+  cursor: progress;
+}
+
+.app-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 18px;
+  z-index: 100;
+  max-width: calc(100vw - 28px);
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 12px;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 8px);
+  transition: opacity 0.18s ease, transform 0.18s ease;
+}
+
+.app-toast.on {
+  opacity: 1;
+  transform: translate(-50%, 0);
 }

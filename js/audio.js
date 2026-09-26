@@ -4,7 +4,7 @@
  */
 const ResQAudio = (function() {
   let audioCtx = null;
-  let enabled = true;
+  let enabled = false;
 
   function initCtx() {
     if (!audioCtx && (window.AudioContext || window.webkitAudioContext)) {

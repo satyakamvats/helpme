@@ -26,42 +26,34 @@
     <div class="brand">
       <span class="mark">R</span>
       <span>ResQMesh</span>
-      <span class="brand-badge">DPI Core</span>
+      <span class="brand-badge">Offline Demo</span>
     </div>
     
     <div class="pill ok" id="netPill">
       <span class="d"></span>
-      <span class="txt">Mesh Connected</span>
+      <span class="txt">Online · local save ready</span>
     </div>
     
     <div class="pill" id="syncPill">
-      <span class="txt mono">Last sync just now</span>
+      <span class="txt mono">Reports save on device</span>
     </div>
     
     <div class="header-actions">
-      <button class="pill" id="outageBtn">
-        <span class="txt">⚡ Simulate Outage</span>
-      </button>
-      
       <button class="pill" id="demoBtn">
-        <span class="txt">▶ Run Demo</span>
-      </button>
-      
-      <button class="sound-toggle-btn on" id="soundToggleBtn" title="Toggle tactical audio alerts">
-        🔊 <span class="txt">Audio: On</span>
+        <span class="txt">Run Guided Demo</span>
       </button>
     </div>
 
     <div class="nav-spacer"></div>
 
     <div class="role-switch">
-      <button class="on" id="roleResponder" onclick="setRole('responder')">Command Post</button>
-      <button id="roleCitizen" onclick="setRole('citizen')">Citizen Offline SOS</button>
-      <button id="roleMesh" onclick="setRole('mesh')">P2P Mesh View</button>
+      <button class="on" id="roleResponder" onclick="setRole('responder')">Command</button>
+      <button id="roleCitizen" onclick="setRole('citizen')">Report SOS</button>
+      <button id="roleMesh" onclick="setRole('mesh')">Relay</button>
     </div>
 
     <button class="btn-sos" onclick="raiseDemoSos()">
-      <span class="p"></span>RAISE SOS
+      <span class="p"></span><span class="sos-label">RAISE SOS</span>
     </button>
   </header>
 
@@ -81,24 +73,16 @@
       <span>Active Incidents</span>
     </div>
     <div class="ov-cell">
-      <b class="mono" style="color:var(--info)">9</b>
-      <span>Available Responders</span>
-    </div>
-    <div class="ov-cell">
-      <b class="mono" style="color:var(--warn)">14</b>
-      <span>Community Assets</span>
-    </div>
-    <div class="ov-cell">
-      <b class="mono" style="color:var(--ok)">94%</b>
-      <span>Mesh Resilience</span>
+      <b class="mono" style="color:var(--info)">9 · demo</b>
+      <span>Simulated responders</span>
     </div>
     <div class="ov-cell">
       <b class="mono">Mangaluru · Ullal</b>
-      <span>Scenario District · coastal zone</span>
+      <span>Scenario district</span>
     </div>
     <div class="ov-cell">
-      <b class="mono" id="ovSync">Just now</b>
-      <span>Event-sourced sync</span>
+      <b class="mono" id="ovSync">Device queue</b>
+      <span>Saved on this device</span>
     </div>
   </div>
 
@@ -281,14 +265,9 @@
 
   <!-- ==================== CITIZEN OFFLINE PWA VIEW ==================== -->
   <div class="citizen-view" id="citizenView">
-    <div class="c-header-tag">Disconnected-First Digital Public Infrastructure</div>
-    <h2 class="c-title">Emergency Assistance</h2>
-    <p class="c-sub">Demo simulation: your SOS is signed locally with Web Crypto and queued in this tab, then shown relaying hop-by-hop through named BLE peers.</p>
-    
-    <button class="c-sos-btn" onclick="submitCitizenSos()">
-      <b>SEND OFFLINE SOS</b>
-      <span>Simulated Peer-to-Peer Broadcast</span>
-    </button>
+    <div class="c-header-tag">Mangaluru · Offline demo</div>
+    <h2 class="c-title">Report an emergency</h2>
+    <p class="c-sub">After this page loads once, reports save on this device even offline. Peer relay is simulated.</p>
 
     <div class="c-field">
       <label>Emergency Category</label>
@@ -302,10 +281,10 @@
     </div>
 
     <div class="c-field">
-      <label>GPS Location</label>
+      <label>Scenario location</label>
       <button class="c-loc-btn" id="locBtn" onclick="shareLocation()">
-        <span>Share Device Coordinates</span>
-        <span id="locStatus" class="mono">Tap to acquire</span>
+        <span>Use Ullal demo location</span>
+        <span id="locStatus" class="mono">Optional</span>
       </button>
     </div>
 
@@ -322,17 +301,17 @@
 
     <div class="c-field">
       <label>Brief Operational Notes</label>
-      <textarea placeholder="e.g. Water entering first floor, elderly person with mobility restriction…"></textarea>
+      <textarea placeholder="What happened? (optional)"></textarea>
     </div>
 
-    <button class="c-submit" onclick="submitCitizenSos()">Broadcast SOS Over Mesh</button>
+    <button class="c-submit" onclick="submitCitizenSos()">Save report and open Command</button>
 
     <div class="c-status" id="citizenStatus">
       <h5>Hop-by-hop Relay Status</h5>
       <div class="step" id="cs1"><span class="sd">✓</span>Ed25519 signed & queued in this tab (demo)</div>
       <div class="step" id="cs2"><span class="sd">✓</span>Simulated BLE peer relay: Citizen → Neha's phone</div>
       <div class="step" id="cs3"><span class="sd">✓</span>Simulated relay: Volunteer Bike → NDRF Surathkal</div>
-      <div class="step" id="cs4"><span class="sd">✓</span>Simulated sync to District Collector HQ</div>
+      <div class="step" id="cs4"><span class="sd">✓</span>Report available in the Command Post queue</div>
     </div>
   </div>
 
@@ -383,12 +362,14 @@
   <div class="modal-bg" id="genericModalBg">
     <div class="modal modal-wide" id="genericModalContent"></div>
   </div>
+  <div class="app-toast" id="appToast" role="status" aria-live="polite"></div>
 
   <!-- ==================== MODULAR JAVASCRIPT BUNDLES ==================== -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="js/bloom-filter.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
+  <script src="js/offline-store.js"></script>
   <script src="js/state.js"></script>
   <script src="js/trust-engine.js"></script>
   <script src="js/resource-matcher.js"></script>

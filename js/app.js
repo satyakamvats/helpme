@@ -13,6 +13,34 @@ function escapeHtml(str) {
   return String(str || '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 }
 
+let appToastTimer = null;
+function showAppToast(message) {
+  const toast = document.getElementById('appToast');
+  if (!toast) return;
+  toast.textContent = message;
+  toast.classList.add('on');
+  clearTimeout(appToastTimer);
+  appToastTimer = setTimeout(() => toast.classList.remove('on'), 3200);
+}
+
+async function restoreSavedIncidents() {
+  if (!window.OfflineStore) return;
+  const state = ResQState.get();
+  const knownIds = new Set(state.sosData.map(incident => incident.id));
+  const restored = await OfflineStore.getAllIncidents();
+  let newestRestored = null;
+  restored.reverse().forEach(incident => {
+    if (knownIds.has(incident.id)) return;
+    state.sosData.unshift(incident);
+    knownIds.add(incident.id);
+    newestRestored = incident;
+    window.seenFingerprints?.add(window.fingerprintFor(incident));
+    const number = Number(incident.id.match(/^SOS-(\d+)$/)?.[1]);
+    if (Number.isFinite(number)) state.nextSosNumber = Math.max(state.nextSosNumber, number + 1);
+  });
+  if (newestRestored) state.selected = newestRestored;
+}
+
 // ==================== RENDERING LOGIC ====================
 
 let tacticalMap = null;
@@ -257,10 +285,11 @@ function renderMeshDock() {
   if (ttlEl) ttlEl.textContent = r.ttl;
   if (statusEl) {
     statusEl.textContent = r.status;
-    statusEl.style.color = ['Delivered', 'Synced'].includes(r.status) ? 'var(--ok)' : r.status === 'Resolved' ? 'var(--ink-dim)' : 'var(--warn)';
+    statusEl.style.color = ['Delivered', 'Delivered · demo', 'Saved locally', 'Synced'].includes(r.status)
+      ? 'var(--ok)' : r.status === 'Resolved' ? 'var(--ink-dim)' : 'var(--warn)';
   }
 
-  const activeNodes = r.activeNodes || (['Delivered', 'Synced'].includes(r.status) ? 5 : 3);
+  const activeNodes = r.activeNodes || (['Delivered', 'Delivered · demo', 'Saved locally', 'Synced'].includes(r.status) ? 5 : 3);
   document.querySelectorAll('#meshDock .flow-node').forEach((n, i) => {
     n.classList.toggle('active', i < activeNodes);
   });
@@ -283,6 +312,7 @@ function renderAll() {
   renderContextPanel();
   renderMeshDock();
   renderOverview();
+  refreshConnectivityStatus();
 }
 
 // ==================== APP INTERACTIONS ====================
@@ -328,29 +358,33 @@ function toggleOutage() {
   setOutageState(!state.outage);
 }
 
+function refreshConnectivityStatus() {
+  const state = ResQState.get();
+  const offline = !navigator.onLine;
+  const shellReady = Boolean(navigator.serviceWorker?.controller);
+  const unavailable = offline || state.outage;
+  const netPill = document.getElementById('netPill');
+  const syncPill = document.getElementById('syncPill');
+  const overviewStatus = document.getElementById('ovSync');
+  if (netPill) {
+    netPill.className = `pill ${unavailable ? 'warn' : 'ok'}`;
+    netPill.querySelector('.txt').textContent = offline
+      ? 'Offline · saving on device'
+      : state.outage ? 'Simulated outage · local queue'
+        : shellReady ? 'Online · offline-ready' : 'Online · preparing offline mode';
+  }
+  if (syncPill) syncPill.querySelector('.txt').textContent = 'SOS reports save on device';
+  if (overviewStatus) overviewStatus.textContent = offline ? 'Offline' : 'Local queue';
+}
+
 function setOutageState(next) {
   const state = ResQState.get();
   const changed = state.outage !== next;
   if (changed) ResQState.setOutage(next);
-
-  const np = document.getElementById('netPill');
-  const sp = document.getElementById('syncPill');
-  const ovSync = document.getElementById('ovSync');
-
-  if (next) {
-    np.className = 'pill warn';
-    np.querySelector('.txt').textContent = 'Internet Down — Mesh Active';
-    sp.querySelector('.txt').textContent = 'Queued offline';
-    if (ovSync) ovSync.textContent = 'Awaiting link';
-    if (changed) window.MeshSimulator.appendLog('Flood outage triggered. Cellular backhaul severed. DTN store-and-forward active.', true);
-  } else {
-    np.className = 'pill ok';
-    np.querySelector('.txt').textContent = 'Mesh Connected';
-    sp.querySelector('.txt').textContent = 'Last sync just now';
-    if (ovSync) ovSync.textContent = 'Just now';
-    if (changed) window.MeshSimulator.appendLog('Uplink restored. Synchronizing incident bundles to Collector HQ.');
-  }
-
+  refreshConnectivityStatus();
+  if (changed) window.MeshSimulator.appendLog(next
+    ? 'Outage simulation started. Reports remain saved locally; peer relay is illustrative.'
+    : 'Outage simulation ended. Local reports remain on this device.');
   renderAll();
 }
 
@@ -485,7 +519,18 @@ async function submitCitizenSos() {
   newSos.createdAt = Date.now();
   newSos.ed25519 = await window.CryptoInspector.signIncident(newSos);
   newSos.trust.sig = newSos.ed25519.verified ? 'Ed25519 · Web Crypto verified' : 'Signature unavailable · unverified';
+  let storageBackend = 'memory only';
+  let storageFailed = false;
+  try {
+    storageBackend = await window.OfflineStore.saveIncident(newSos);
+  } catch {
+    storageFailed = true;
+  }
   ResQState.addSos(newSos);
+  if (ResQState.get().currentRole === 'citizen') setRole('responder');
+  showAppToast(storageFailed
+    ? `${newSos.id} is only in this open page; browser storage failed.`
+    : `${newSos.id} saved on this device (${storageBackend}).`);
 
   if (window.ResQAudio) ResQAudio.playAlertBeep();
 
@@ -506,10 +551,11 @@ async function submitCitizenSos() {
       if (window.ResQAudio) ResQAudio.playPacketChirp();
 
       const hops = [0, 1, 3, 4][i];
-      const status = i === 3 ? (state.outage ? 'Queued for sync' : 'Synced') : ['Queued offline', 'Relaying', 'Relaying', 'Delivered'][i];
+      const status = i === 3 ? 'Saved locally' : ['Queued offline', 'Relaying · demo', 'Relaying · demo'][i];
       newSos.hops = hops;
       newSos.ttl = Math.max(0, 7 - hops);
       newSos.status = status;
+      window.OfflineStore.saveIncident(newSos).catch(() => {});
 
       ResQState.setRelayOverride({
         id: newSos.id,
@@ -517,7 +563,7 @@ async function submitCitizenSos() {
         status,
         hops,
         ttl: newSos.ttl,
-        activeNodes: [1, 3, 4, state.outage ? 4 : 5][i]
+        activeNodes: [1, 3, 4, 5][i]
       });
 
       renderAll();
@@ -525,11 +571,32 @@ async function submitCitizenSos() {
       if (i >= steps.length) clearInterval(interval);
     }, 900);
   }
+  return newSos;
 }
 
-function raiseDemoSos() {
-  submitCitizenSos();
-  setRole('responder');
+async function raiseDemoSos() {
+  const button = document.querySelector('.btn-sos');
+  if (button?.disabled) return;
+  if (button) button.disabled = true;
+  try {
+    setRole('citizen');
+    const incident = await submitCitizenSos();
+    setRole('responder');
+    if (incident) {
+      showAppToast(`${incident.id} is in the Command Post queue.`);
+      const label = button?.querySelector('.sos-label');
+      if (label) {
+        label.textContent = `${incident.id} ADDED`;
+        setTimeout(() => { label.textContent = 'RAISE SOS'; }, 1800);
+      }
+    }
+    return incident;
+  } catch {
+    setRole('responder');
+    showAppToast('SOS could not be created. Please retry.');
+  } finally {
+    if (button) button.disabled = false;
+  }
 }
 
 function shareLocation() {
@@ -546,7 +613,7 @@ function pickChip(btn) {
 
 // ==================== INITIALIZATION ====================
 
-window.addEventListener('DOMContentLoaded', () => {
+async function initializeResQMesh() {
   ResQState.subscribe((event, payload) => {
     renderAll();
   });
@@ -555,7 +622,11 @@ window.addEventListener('DOMContentLoaded', () => {
   document.getElementById('demoBtn')?.addEventListener('click', () => window.DemoController.start());
   document.getElementById('soundToggleBtn')?.addEventListener('click', toggleSound);
 
+  window.addEventListener('online', refreshConnectivityStatus);
+  window.addEventListener('offline', refreshConnectivityStatus);
+  await restoreSavedIncidents();
   renderAll();
+
   Promise.all(ResQState.get().sosData.map(s => window.CryptoInspector.signIncident(s))).then(signatures => {
     ResQState.get().sosData.forEach((s, index) => {
       s.trust.sig = signatures[index].verified
@@ -571,4 +642,15 @@ window.addEventListener('DOMContentLoaded', () => {
       renderContextPanel();
     }
   }, 12000);
+
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
+    navigator.serviceWorker.addEventListener('controllerchange', refreshConnectivityStatus);
+    navigator.serviceWorker.register('./service-worker.js', { scope: './' })
+      .then(() => navigator.serviceWorker.ready.then(refreshConnectivityStatus))
+      .catch(() => showAppToast('Offline app-shell cache is unavailable in this browser.'));
+  }
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  initializeResQMesh().catch(error => showAppToast(`Startup issue: ${error.message}`));
 });
