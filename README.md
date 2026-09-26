@@ -12,7 +12,7 @@ For a local web server, run `python -m http.server 8000` from this directory and
 
 ## Demo Flow
 
-- `Command` shows the Mangaluru incident queue, tactical map, trust/provenance, resource matches, and knowledge graph.
+- `Command` shows the Mangaluru incident queue, tactical map, trust/provenance, resource matches, and knowledge graph. The route is recomputed with Dijkstra over a small scenario road/river graph and animated on the map.
 - `Report SOS` saves a signed report to IndexedDB (localStorage fallback), then opens the Command queue.
 - `Relay` shows five simulated relay hops, outage/reconnect controls, duplicate suppression, and a timestamped packet log.
 - `RAISE SOS` creates a default flood report from any view. `Run Guided Demo` walks through outage, relay, graph, matching, and local save.
@@ -26,4 +26,4 @@ See [RESQMESH_DEMO_GUIDE.md](RESQMESH_DEMO_GUIDE.md) for the timed judge walkthr
 
 ## Demo Safety
 
-Incidents, confidence values, facility capacity, routes, responders, and ETAs are mock data around real Mangaluru place-name references. The map uses approximate coordinates and is not a live hazard or dispatch feed. The service worker caches same-origin app files and SOS records persist locally, but BLE/Wi-Fi relaying and server sync are simulated in the UI. Offline support begins after one successful load. Ed25519 keys are ephemeral to the tab and do not provide production identity management. CAP exports are `Test` / `Private` and must not be used as public alerts. Gemini is optional; use only a disposable demo key because the browser sends it directly to Google's API.
+Incidents, confidence values, facility capacity, responders, and ETAs are mock data around real Mangaluru place-name references. The map uses approximate coordinates; Dijkstra runs over a small scenario graph, not live routing or hazard data. The service worker caches same-origin app files and SOS records persist locally, but BLE/Wi-Fi relaying and server sync are simulated in the UI. Offline support begins after one successful load. Ed25519 keys are ephemeral to the tab and do not provide production identity management. CAP exports are `Test` / `Private` and must not be used as public alerts. Gemini is optional; use only a disposable demo key because the browser sends it directly to Google's API.

@@ -313,6 +313,41 @@
   animation: pulse 1.5s infinite;
 }
 
+.map-route-status {
+  position: absolute;
+  top: 58px;
+  right: 14px;
+  z-index: 10;
+  max-width: min(270px, calc(100% - 28px));
+  padding: 6px 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--ink-dim);
+  background: rgba(19, 24, 38, 0.9);
+  font: 9px var(--font-mono);
+  text-align: right;
+  pointer-events: none;
+}
+
+.leaflet-overlay-pane path.shortest-route {
+  stroke-dasharray: 10 12;
+  animation: shortestRouteFlow 0.9s linear infinite;
+  filter: drop-shadow(0 0 3px rgba(226, 59, 59, 0.65));
+}
+
+.leaflet-overlay-pane path.shortest-route-packet {
+  filter: drop-shadow(0 0 7px rgba(255, 255, 255, 0.95));
+  animation: shortestRoutePulse 0.75s ease-in-out infinite alternate;
+}
+
+@keyframes shortestRouteFlow {
+  to { stroke-dashoffset: -44; }
+}
+
+@keyframes shortestRoutePulse {
+  to { stroke-width: 14px; }
+}
+
 .legend {
   position: absolute;
   left: 14px;
@@ -509,6 +544,32 @@
   background: var(--panel2);
   border: 1px solid var(--line);
   margin-top: 8px;
+}
+
+.graph-route-summary {
+  display: grid;
+  gap: 4px;
+  margin-top: 12px;
+  padding: 9px 11px;
+  border-left: 2px solid var(--ok);
+  background: var(--panel2);
+  color: var(--ink-dim);
+  font-size: 10.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.graph-route-summary b {
+  color: var(--ok);
+  font: 700 9px var(--font-mono);
+}
+
+.graph-route-summary.rerouted {
+  border-left-color: var(--critical);
+}
+
+.graph-route-summary.rerouted b {
+  color: var(--critical);
 }
 
 .graph-edge {

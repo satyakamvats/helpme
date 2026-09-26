@@ -47,6 +47,9 @@ let tacticalMap = null;
 let incidentLayer = null;
 let resourceLayer = null;
 let roadLayer = null;
+let shortestPathLayer = null;
+let shortestPathPacket = null;
+let shortestPathFrame = null;
 
 function initializeTacticalMap(state) {
   const host = document.getElementById('tacticalMap');
@@ -67,6 +70,7 @@ function initializeTacticalMap(state) {
   incidentLayer = L.layerGroup().addTo(tacticalMap);
   resourceLayer = L.layerGroup().addTo(tacticalMap);
   roadLayer = L.layerGroup().addTo(tacticalMap);
+  shortestPathLayer = L.layerGroup().addTo(tacticalMap);
 
   const locations = [
     ...state.sosData.map(incident => incident.coordinates),
@@ -75,6 +79,38 @@ function initializeTacticalMap(state) {
   tacticalMap.fitBounds(locations, { padding: [28, 28], maxZoom: 13 });
   requestAnimationFrame(() => tacticalMap.invalidateSize({ pan: false }));
   return true;
+}
+
+function animateShortestPath(coordinates) {
+  if (shortestPathFrame) cancelAnimationFrame(shortestPathFrame);
+  if (!shortestPathPacket || coordinates.length < 2) return;
+  const points = coordinates.map(coordinate => L.latLng(coordinate));
+  const segments = points.slice(1).map((point, index) => ({
+    start: points[index],
+    end: point,
+    length: points[index].distanceTo(point)
+  }));
+  const totalLength = segments.reduce((sum, segment) => sum + segment.length, 0);
+  if (!totalLength) return;
+
+  let startTime = null;
+  function movePacket(timestamp) {
+    if (startTime === null) startTime = timestamp;
+    let remaining = ((timestamp - startTime) % 6400) / 6400 * totalLength;
+    for (const segment of segments) {
+      if (remaining <= segment.length) {
+        const progress = remaining / segment.length;
+        shortestPathPacket.setLatLng([
+          segment.start.lat + (segment.end.lat - segment.start.lat) * progress,
+          segment.start.lng + (segment.end.lng - segment.start.lng) * progress
+        ]);
+        break;
+      }
+      remaining -= segment.length;
+    }
+    shortestPathFrame = requestAnimationFrame(movePacket);
+  }
+  shortestPathFrame = requestAnimationFrame(movePacket);
 }
 
 function renderSosList() {
@@ -121,10 +157,22 @@ function renderMap() {
     roadButton.textContent = state.roadBlocked ? '⚠ Clear Road Obstruction' : '⚡ Toggle Road Obstruction';
   }
 
+  const route = window.ResourceMatcher.getCandidates(state.selected, state.roadBlocked)[0]?.route;
+  const routeStatus = document.getElementById('mapRouteStatus');
+  if (routeStatus) {
+    routeStatus.textContent = route
+      ? `Dijkstra · ${route.mode} · ${route.distanceKm.toFixed(1)} km · simulated`
+      : 'No route found in scenario graph';
+  }
+
   if (hasLeafletMap) {
     incidentLayer.clearLayers();
     resourceLayer.clearLayers();
     roadLayer.clearLayers();
+    shortestPathLayer.clearLayers();
+    if (shortestPathFrame) cancelAnimationFrame(shortestPathFrame);
+    shortestPathFrame = null;
+    shortestPathPacket = null;
 
     state.sosData.forEach(s => {
       if (!Array.isArray(s.coordinates)) return;
@@ -152,6 +200,27 @@ function renderMap() {
       opacity: 0.9,
       dashArray: state.roadBlocked ? '7 8' : '4 7'
     }).addTo(roadLayer).bindPopup(state.roadBlocked ? 'Ullal Beach Road · blocked in scenario simulation' : 'Ullal Beach Road · route status simulated');
+
+    if (route?.coordinates?.length > 1) {
+      const routeColor = route.mode === 'water' ? '#0FB9B1' : state.roadBlocked ? '#FF2B3E' : '#E23B3B';
+      L.polyline(route.coordinates, {
+        color: routeColor,
+        weight: 5,
+        opacity: 0.95,
+        dashArray: '10 12',
+        className: 'shortest-route'
+      }).addTo(shortestPathLayer).bindPopup(`<div class="resqmap-popup"><b>Dijkstra · ${escapeHtml(route.mode)} route</b><br>${escapeHtml(route.routeLabel)}<br>${route.distanceKm.toFixed(1)} km · simulated</div>`);
+      shortestPathPacket = L.circleMarker(route.coordinates[0], {
+        radius: 7,
+        color: '#FFFFFF',
+        weight: 2,
+        fillColor: routeColor,
+        fillOpacity: 1,
+        className: 'shortest-route-packet',
+        interactive: false
+      }).addTo(shortestPathLayer);
+      animateShortestPath(route.coordinates);
+    }
     return;
   }
 

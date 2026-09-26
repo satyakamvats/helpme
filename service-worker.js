@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resqmesh-shell-v4';
+const CACHE_NAME = 'resqmesh-shell-v7';
 const APP_FILES = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const APP_FILES = [
   './js/offline-store.js',
   './js/state.js',
   './js/trust-engine.js',
+  './js/route-planner.js',
   './js/resource-matcher.js',
   './js/knowledge-graph.js',
   './js/cap-alert.js',

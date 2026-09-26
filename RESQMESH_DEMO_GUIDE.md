@@ -21,7 +21,7 @@ The judge-facing entry point is `index.html`. The older `ResQMesh — Emergency 
    In Trust & Provenance, click `Inspect Ed25519 Packet`. The browser signs the canonical packet with an ephemeral Web Crypto Ed25519 key. Choose `Simulate Packet Tampering`: the original signature should fail against the altered payload. Choose restore to verify the original again.
 
 5. **Road reroute and graph, 1:55–2:25**
-   Click `Toggle Road Obstruction` on the map. Ullal Beach Road changes state; open Resource Match to show the ground vehicle recommendation replaced by NDRF Boat Unit 02. Open Knowledge Graph to see the changed corridor and resource relationship.
+   Click `Toggle Road Obstruction` on the map. Dijkstra recomputes the shortest path without Ullal Beach Road; watch the animated route and packet move to the NH-66 detour or NDRF Boat Unit 02 water route. Resource Match and Knowledge Graph show the same new path and simulated distance/ETA.
 
 6. **Interoperability and citizen flow, 2:25–3:00**
    In Trust & Provenance, choose `Export CAP 1.2 Alert`, inspect the XML/GeoJSON and optionally download both. The CAP status is `Test` and scope is `Private`. Choose `Report SOS`, submit a report, and it returns to `Command` with the saved incident selected.
@@ -31,6 +31,7 @@ The judge-facing entry point is `index.html`. The older `ResQMesh — Emergency 
 - The prototype demonstrates a disconnected-first incident workflow, simulated multi-hop store-and-forward, in-memory Bloom-filter duplicate detection, road-state-driven matching, a linked knowledge-graph view, real Web Crypto Ed25519 signing/verification, and CAP/GeoJSON test export.
 - The seed incidents, facility capacity, routes, responders, confidence values, and ETAs are mock data located around real Mangaluru place names.
 - The basemap uses OpenStreetMap with approximate scenario coordinates. It is not a live GPS, flood, traffic, or dispatch feed; the incident/resource values remain simulated.
+- Dijkstra runs on a small illustrative road/river graph, not a live road network or pgRouting service. Its distances and ETAs are for demonstration only.
 - The Ed25519 key pair is ephemeral to the browser tab. It demonstrates cryptographic verification but is not a production identity or key-management system.
 - The P2P/Bluetooth path is simulated in the UI. It does not open Bluetooth/Wi-Fi radios, contact responders, or send packets to a backend.
 - CAP output is a private `Test` alert for inspection and must not be treated as a public warning or dispatch instruction.

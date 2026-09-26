@@ -11,9 +11,10 @@ const KnowledgeGraphRenderer = {
     const resources = window.ResourceMatcher
       ? window.ResourceMatcher.getCandidates(incident, isRoadBlocked)
       : [];
+    const route = resources[0]?.route;
     const resourceName = resources.length ? resources[0].name.split('(')[0].trim() : 'NDRF Unit';
     const area = (incident.loc || 'Mangaluru').split('·')[0].trim();
-    const roadCondition = isRoadBlocked ? 'BLOCKED (Rerouting)' : 'ROAD OPEN';
+    const roadCondition = route ? `${route.mode.toUpperCase()} · ${route.distanceKm.toFixed(1)} km` : 'NO PATH';
     const roadColor = isRoadBlocked ? '#FF2B3E' : '#20BF6B';
 
     const entities = [
@@ -44,7 +45,7 @@ const KnowledgeGraphRenderer = {
           ${isRoadBlocked ? '⚠ Rerouted: Clear Road' : '⚡ Simulate Blocked Road'}
         </button>
       </div>
-      <div class="sub">Relational graph representing people, needs, resources, and topological road status for ${incident.id}.</div>
+      <div class="sub">Incident, response resource, and the current shortest route for ${incident.id}.</div>
       
       <svg class="graph-svg" viewBox="0 0 260 235" role="img" aria-label="Distributed knowledge graph">
         <defs>
@@ -84,11 +85,10 @@ const KnowledgeGraphRenderer = {
         </g>
       </svg>
       
-      <div style="margin-top:12px; font-size:11px; color:var(--ink-dim); line-height:1.4;">
-        ${isRoadBlocked
-          ? '<b style="color:var(--critical)">Scenario reroute:</b> Road obstruction is active. The simulated matcher swaps the ground vehicle suggestion for NDRF Boat Unit 02; ETAs are mock values.'
-          : '<b style="color:var(--ok)">Scenario route:</b> No obstruction toggle is active. Corridor status and ETAs are simulated; no routing service is connected.'
-        }
+      <div class="graph-route-summary ${isRoadBlocked ? 'rerouted' : ''}">
+        <b>${isRoadBlocked ? 'REROUTED' : 'SHORTEST ROUTE'} · ${route ? route.mode.toUpperCase() : 'NO PATH'}</b>
+        <span>${escapeHtml(route ? route.routeLabel : 'No route found')}</span>
+        <span>${route ? `${route.distanceKm.toFixed(1)} km · scenario estimate` : 'Check the scenario network'}</span>
       </div>
     `;
   }
