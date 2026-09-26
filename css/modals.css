@@ -1,0 +1,147 @@
+/* ==================== MODALS & INSPECTORS ==================== */
+.modal-bg {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 7, 12, 0.85);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  padding: 16px;
+  backdrop-filter: blur(5px);
+}
+
+.modal-bg.on {
+  display: flex;
+}
+
+.modal {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  padding: 24px;
+  max-width: 420px;
+  width: 100%;
+  text-align: center;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.8);
+  animation: modalIn 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal.modal-wide {
+  max-width: 640px;
+  text-align: left;
+}
+
+@keyframes modalIn {
+  from { opacity: 0; transform: scale(0.95) translateY(8px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+.modal .midot {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--critical-bg);
+  color: var(--critical);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 24px;
+  margin: 0 auto 14px;
+  border: 1px solid rgba(255, 43, 62, 0.3);
+}
+
+.modal h4 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.modal p {
+  font-size: 13px;
+  color: var(--ink-dim);
+  margin: 0 0 18px;
+  line-height: 1.5;
+}
+
+.modal button.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 10px 22px;
+  border-radius: 10px;
+  box-shadow: 0 4px 14px var(--accent-glow);
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 16px;
+}
+
+.modal-header h4 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.modal-close {
+  font-size: 18px;
+  color: var(--ink-dim);
+  padding: 4px 8px;
+  border-radius: 6px;
+}
+
+.modal-close:hover {
+  color: #fff;
+  background: var(--panel2);
+}
+
+.code-preview {
+  background: #080B10;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 12px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: #6ee7b7;
+  overflow-x: auto;
+  max-height: 280px;
+  line-height: 1.45;
+  white-space: pre;
+}
+
+.crypto-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.crypto-valid {
+  background: var(--ok-bg);
+  border: 1px solid rgba(32, 191, 107, 0.4);
+  color: #6ee7b7;
+}
+
+.crypto-invalid {
+  background: var(--critical-bg);
+  border: 1px solid rgba(255, 43, 62, 0.4);
+  color: #fca5a5;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 18px;
+}

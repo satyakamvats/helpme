@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ResQMesh — Emergency Operations Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#0B0E14; --panel:#131826; --panel2:#1B2230; --line:#29303F; --line-soft:#1D2430;
+  --ink:#EDF1EE; --ink-dim:#9CA6B8; --ink-faint:#6B7486;
+  --critical:#FF0000; --critical-bg:#2E0810;
+  --warn:#8C2530; --warn-bg:#2A0E12;
+  --ok:#5E1D22; --ok-bg:#200A0C;
+  --info:#742229; --info-bg:#220B0D;
+  --accent:#FF0000; --accent-ink:#F6E8E8;
+  color-scheme:dark;
+}
+*{box-sizing:border-box;}
+html{scroll-behavior:smooth;}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:'Manrope',system-ui,sans-serif;-webkit-font-smoothing:antialiased;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);}
+.mono{font-family:'JetBrains Mono',ui-monospace,monospace;letter-spacing:-.01em;}
+button{font-family:inherit;cursor:pointer;border:none;background:none;color:inherit;}
+input,select,textarea{font-family:inherit;}
+
+/* ---------- NAV ---------- */
+header{display:flex;align-items:center;gap:16px;height:56px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50;}
+.brand{display:flex;align-items:center;gap:9px;font-weight:800;font-size:15px;letter-spacing:-.01em;}
+.brand .mark{width:20px;height:20px;border-radius:6px;background:var(--accent);display:flex;align-items:center;justify-content:center;color:var(--accent-ink);font-size:11px;font-weight:800;}
+.pill{display:flex;align-items:center;gap:6px;font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:7px;border:1px solid var(--line);color:var(--ink-dim);}
+.pill .d{width:6px;height:6px;border-radius:50%;}
+.pill.ok{color:#D98A90;border-color:rgba(255,0,0,.35);background:var(--critical-bg);} .pill.ok .d{background:var(--critical);box-shadow:0 0 0 3px rgba(255,0,0,.22);}
+.pill.warn{color:var(--warn);border-color:rgba(140,37,48,.45);background:var(--warn-bg);} .pill.warn .d{background:var(--warn);box-shadow:0 0 0 3px rgba(140,37,48,.25);}
+.nav-spacer{flex:1;}
+.role-switch{display:flex;background:var(--panel2);border:1px solid var(--line);border-radius:8px;padding:2px;font-size:12px;font-weight:700;}
+.role-switch button{padding:6px 12px;border-radius:6px;color:var(--ink-dim);}
+.role-switch button.on{background:var(--accent);color:var(--accent-ink);}
+.btn-sos{background:var(--critical);color:var(--accent-ink);font-weight:800;font-size:12.5px;padding:9px 16px;border-radius:8px;box-shadow:0 0 0 1px rgba(255,0,0,.5),0 6px 18px rgba(255,0,0,.45);display:flex;align-items:center;gap:7px;}
+.btn-sos .p{width:7px;height:7px;border-radius:50%;background:var(--accent-ink);animation:pulse 1.2s ease-in-out infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.25;}}
+@media(max-width:760px){header{gap:8px;padding:8px 10px;height:auto;min-height:56px;flex-wrap:wrap;} .pill span.txt{display:none;} .role-switch{display:flex;} .role-switch button{padding:5px 8px;font-size:10px;} #syncPill{display:none;} #outageBtn .txt,#demoBtn .txt{display:inline;font-size:10px;}}
+
+/* ---------- COMMAND OVERVIEW ---------- */
+.overview{display:flex;gap:1px;background:var(--line);border-bottom:1px solid var(--line);overflow-x:auto;}
+.ov-cell{flex:1;min-width:110px;background:var(--panel);padding:10px 16px;}
+.ov-cell b{display:block;font-family:'JetBrains Mono',monospace;font-size:19px;line-height:1.1;}
+.ov-cell span{font-size:10.5px;color:var(--ink-dim);}
+
+/* ---------- MAIN LAYOUT ---------- */
+.app{display:grid;grid-template-columns:300px 1fr 320px;height:calc(100vh - 56px - 46px);}
+@media(max-width:1080px){.app{grid-template-columns:1fr;height:auto;}}
+
+/* SOS LIST */
+.sos-panel{background:var(--panel);border-right:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+.panel-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;}
+.panel-head h3{margin:0;font-size:13px;font-weight:700;}
+.filters{display:flex;gap:5px;padding:9px 12px;border-bottom:1px solid var(--line-soft);flex-wrap:wrap;}
+.filter-chip{font-size:10.5px;font-weight:700;padding:4px 9px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);}
+.filter-chip.on{background:var(--panel2);color:var(--ink);border-color:var(--ink-faint);}
+.sos-scroll{flex:1;overflow-y:auto;}
+.sos-item{padding:11px 14px;border-bottom:1px solid var(--line-soft);cursor:pointer;}
+.sos-item:hover{background:var(--panel2);}
+.sos-item.sel{background:var(--panel2);border-left:3px solid var(--accent);}
+.sos-item .top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;}
+.sos-item .id{font-size:11px;color:var(--ink-dim);}
+.badge{font-size:9.5px;font-weight:800;padding:2px 7px;border-radius:4px;letter-spacing:.02em;}
+.b-critical{background:var(--critical-bg);color:var(--critical);}
+.b-high{background:var(--warn-bg);color:var(--warn);}
+.b-medium{background:var(--info-bg);color:var(--info);}
+.b-resolved{background:var(--ok-bg);color:var(--ok);}
+.sos-item h4{margin:0 0 3px;font-size:13px;}
+.sos-item .meta{font-size:11px;color:var(--ink-dim);}
+
+/* MAP */
+.map-wrap{position:relative;background:var(--bg);overflow:hidden;min-height:340px;}
+.map-wrap svg{position:absolute;inset:0;width:100%;height:100%;}
+.marker{position:absolute;transform:translate(-50%,-50%);cursor:pointer;}
+.m-dot{width:24px;height:24px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:800;color:var(--accent-ink);box-shadow:0 3px 10px rgba(0,0,0,.6);position:relative;}
+@keyframes ring{0%{transform:scale(.9);opacity:.7;}100%{transform:scale(2.4);opacity:0;}}
+.m-ring{position:absolute;inset:0;border-radius:50%;background:var(--critical);animation:ring 2s ease-out infinite;}
+.legend{position:absolute;left:12px;bottom:12px;background:rgba(19,24,38,.92);border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:grid;grid-template-columns:repeat(2,auto);gap:5px 14px;font-size:10.5px;color:var(--ink-dim);backdrop-filter:blur(6px);}
+.legend .lk{display:flex;align-items:center;gap:6px;}
+.legend .sw{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.map-top-stat{position:absolute;top:12px;right:12px;background:rgba(19,24,38,.92);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:11px;display:flex;align-items:center;gap:7px;backdrop-filter:blur(6px);}
+.map-top-stat .d{width:6px;height:6px;border-radius:50%;background:var(--critical);}
+
+/* CONTEXT PANEL */
+.ctx-panel{background:var(--panel);border-left:1px solid var(--line);display:flex;flex-direction:column;overflow:hidden;}
+.ctx-tabs{display:flex;border-bottom:1px solid var(--line);}
+.ctx-tabs button{flex:1;padding:11px 0;font-size:11.5px;font-weight:700;color:var(--ink-dim);border-bottom:2px solid transparent;}
+.ctx-tabs button.on{color:var(--ink);border-bottom-color:var(--accent);}
+.ctx-body{flex:1;overflow-y:auto;padding:16px;}
+.ctx-body h4{margin:0 0 3px;font-size:14px;}
+.ctx-body .sub{font-size:11.5px;color:var(--ink-dim);margin-bottom:14px;}
+.kv{display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--line-soft);font-size:12.5px;}
+.kv span:first-child{color:var(--ink-dim);}
+.kv span:last-child{font-family:'JetBrains Mono',monospace;}
+.conf-bar{height:6px;border-radius:4px;background:var(--panel2);overflow:hidden;margin-top:4px;}
+.conf-fill{height:100%;background:var(--critical);transition:width .8s ease;}
+.match-row{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:11px 12px;margin-bottom:9px;}
+.match-row .chain{font-size:10px;color:var(--ink-faint);margin-bottom:6px;}
+.match-row .name{font-weight:700;font-size:13px;}
+.match-row .eta{font-size:11px;color:var(--warn);font-weight:700;margin-top:4px;}
+.graph-svg{width:100%;height:auto;}
+.graph-edge{stroke-dasharray:4 5;animation:routeflow 3s linear infinite;}
+.graph-nodes circle{filter:drop-shadow(0 0 3px rgba(255,0,0,.22));animation:graphPulse 2s ease-in-out infinite alternate;}
+@keyframes graphPulse{to{filter:drop-shadow(0 0 7px rgba(255,0,0,.42));}}
+
+/* MESH FLOW DOCK */
+.mesh-dock{background:var(--panel);border-top:1px solid var(--line);padding:12px 16px;display:flex;align-items:center;gap:18px;overflow-x:auto;}
+.flow-track{position:relative;flex:1;min-width:420px;height:2px;background:var(--line);margin:0 6px;}
+.flow-track .fdot{position:absolute;top:-3px;width:8px;height:8px;border-radius:50%;background:var(--accent);animation:flowmove 3s linear infinite;box-shadow:0 0 8px var(--accent);}
+@keyframes flowmove{0%{left:0%;}100%{left:100%;}}
+.flow-node{display:flex;flex-direction:column;align-items:center;gap:5px;flex-shrink:0;}
+.flow-node .fn-dot{width:9px;height:9px;border-radius:50%;background:var(--ink-faint);border:2px solid var(--panel);}
+.flow-node.active .fn-dot{background:var(--accent);}
+.flow-node span{font-size:9.5px;color:var(--ink-dim);white-space:nowrap;}
+.mesh-meta{display:flex;gap:16px;font-size:10.5px;color:var(--ink-dim);flex-shrink:0;}
+.mesh-meta b{color:var(--ink);font-family:'JetBrains Mono',monospace;}
+@media(max-width:900px){.mesh-dock{flex-wrap:wrap;}.mesh-meta{width:100%;justify-content:space-between;}}
+.mesh-view{display:none;padding:16px;background:var(--bg);min-height:calc(100vh - 102px);}
+.mesh-view.on{display:block;}
+.mesh-view-head{display:flex;align-items:center;justify-content:space-between;gap:14px;padding:0 0 12px;border-bottom:1px solid var(--line);}
+.mesh-view-head h2{font-size:15px;margin:0 0 3px;}
+.mesh-view-head p{font-size:11.5px;color:var(--ink-dim);margin:0;}
+.mesh-controls,.mesh-playback{display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.mesh-controls button,.mesh-playback button{font-size:10.5px;font-weight:700;border:1px solid var(--line);border-radius:7px;padding:7px 10px;background:var(--panel);}
+.mesh-controls button:hover,.mesh-playback button:hover{background:var(--panel2);}
+.mesh-playback button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+.mesh-workspace{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(250px,.8fr);min-height:400px;}
+.mesh-route-panel{min-width:0;padding:14px 16px 16px 0;border-right:1px solid var(--line);}
+.mesh-route{display:block;width:100%;height:auto;max-height:300px;background-color:var(--panel);background-image:linear-gradient(var(--line-soft) 1px,transparent 1px),linear-gradient(90deg,var(--line-soft) 1px,transparent 1px);background-size:24px 24px;border:1px solid var(--line);border-radius:8px;}
+.route-coast{fill:none;stroke:#294454;stroke-width:14;opacity:.55;}
+.route-road{fill:none;stroke:#48505E;stroke-width:3;stroke-dasharray:8 6;}
+.route-link{fill:none;stroke:var(--accent);stroke-width:2;stroke-dasharray:5 6;opacity:.45;}
+.route-link.is-live{opacity:1;animation:routeflow 1s linear infinite;}
+@keyframes routeflow{to{stroke-dashoffset:-22;}}
+.route-packet{fill:var(--accent);filter:drop-shadow(0 0 5px var(--accent));transition:cx .65s ease,cy .65s ease;}
+.route-stop circle{fill:var(--panel2);stroke:var(--line);stroke-width:2;transition:fill .2s,stroke .2s;}
+.route-stop text{fill:var(--ink-dim);font:10px 'JetBrains Mono',monospace;text-anchor:middle;}
+.route-stop.is-active circle{fill:var(--critical-bg);stroke:var(--critical);}
+.route-stop.is-done circle{fill:#292019;stroke:var(--warn);}
+.route-stop.is-active text,.route-stop.is-done text{fill:var(--ink);}
+.mesh-step-info{display:flex;align-items:center;gap:12px;padding:12px 0;color:var(--ink-dim);font-size:12px;min-height:48px;}
+.mesh-step-info .mono{color:var(--critical);font-size:10px;white-space:nowrap;}
+.mesh-node-list{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;margin-top:12px;}
+.mesh-node{border-top:1px solid var(--line);padding-top:8px;min-width:0;}
+.mesh-node b{display:block;font-size:10px;line-height:1.35;}
+.mesh-node span{font-size:9px;color:var(--ink-faint);}
+.mesh-node.is-active b{color:var(--critical);}
+.mesh-log-panel{min-width:0;padding:14px 0 14px 16px;display:flex;flex-direction:column;}
+.mesh-log-head{display:flex;justify-content:space-between;align-items:center;padding:0 0 10px;border-bottom:1px solid var(--line);font-size:11px;}
+.mesh-log-head span{font-size:9px;color:var(--critical);}
+.mesh-log{overflow-y:auto;max-height:430px;}
+.mesh-log-entry{display:grid;grid-template-columns:62px 1fr;gap:8px;padding:9px 0;border-bottom:1px solid var(--line-soft);font-size:10.5px;line-height:1.45;}
+.mesh-log-entry time{font:9px 'JetBrains Mono',monospace;color:var(--ink-faint);}
+.mesh-log-entry .event{color:var(--ink-dim);}
+.mesh-log-entry.alert .event{color:#D98A90;}
+@media(max-width:900px){.mesh-view{min-height:0;padding:12px;}.mesh-view-head{align-items:flex-start;flex-direction:column;}.mesh-workspace{grid-template-columns:1fr;}.mesh-route-panel{padding:12px 0;border-right:0;border-bottom:1px solid var(--line);}.mesh-log-panel{padding:12px 0;}.mesh-log{max-height:240px;}}
+@media(max-width:520px){.mesh-node-list{grid-template-columns:repeat(2,minmax(0,1fr));}.mesh-step-info{align-items:flex-start;flex-direction:column;gap:3px;}.route-stop text{font-size:9px;}}
+
+/* CITIZEN MODE */
+.citizen-view{display:none;padding:28px 18px 60px;max-width:420px;margin:0 auto;}
+.citizen-view.on{display:block;}
+.c-title{font-size:20px;font-weight:800;margin:0 0 6px;}
+.c-sub{font-size:13px;color:var(--ink-dim);margin:0 0 22px;}
+.c-sos-btn{width:100%;padding:26px;border-radius:16px;background:linear-gradient(160deg,var(--critical),#4A0910);text-align:center;box-shadow:0 10px 30px rgba(255,0,0,.4);}
+.c-sos-btn b{display:block;font-size:19px;font-weight:800;color:var(--accent-ink);}
+.c-sos-btn span{font-size:11px;color:#E0B3B6;}
+.c-field{margin-top:18px;}
+.c-field label{display:block;font-size:12px;color:var(--ink-dim);margin-bottom:7px;font-weight:600;}
+.chip-select{display:flex;gap:7px;flex-wrap:wrap;}
+.chip-select button{padding:8px 13px;border-radius:8px;border:1px solid var(--line);font-size:12px;color:var(--ink-dim);}
+.chip-select button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);font-weight:700;}
+.c-field textarea,.c-field input[type=number]{width:100%;background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:10px 12px;color:var(--ink);font-size:13px;}
+.c-field textarea{resize:vertical;min-height:60px;}
+.c-check{display:flex;align-items:center;gap:9px;font-size:13px;}
+.c-loc-btn{width:100%;padding:11px;border-radius:10px;background:var(--panel2);border:1px solid var(--line);font-size:12.5px;font-weight:600;text-align:left;display:flex;justify-content:space-between;align-items:center;}
+.c-loc-btn.got{color:var(--warn);border-color:rgba(226,59,59,.4);}
+.c-submit{width:100%;margin-top:22px;padding:14px;border-radius:12px;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:14px;}
+.c-status{margin-top:22px;background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:16px;display:none;}
+.c-status.on{display:block;}
+.c-status .step{display:flex;align-items:center;gap:10px;font-size:12.5px;padding:6px 0;color:var(--ink-dim);}
+.c-status .step.done{color:var(--warn);}
+.c-status .step .sd{width:16px;height:16px;border-radius:50%;border:2px solid var(--line);flex-shrink:0;}
+.c-status .step.done .sd{background:var(--warn);border-color:var(--warn);}
+
+/* ASSISTANT */
+.assist-fab{position:fixed;right:18px;bottom:18px;width:52px;height:52px;border-radius:16px;background:var(--accent);color:var(--accent-ink);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:18px;box-shadow:0 10px 26px rgba(255,0,0,.5);z-index:60;}
+.assist-panel{position:fixed;right:18px;bottom:82px;width:330px;max-height:460px;background:var(--panel);border:1px solid var(--line);border-radius:16px;display:none;flex-direction:column;overflow:hidden;z-index:60;box-shadow:0 20px 50px rgba(0,0,0,.6);}
+.assist-panel.on{display:flex;}
+.assist-head{padding:12px 14px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:9px;font-size:12.5px;font-weight:700;}
+.assist-head .ad{width:7px;height:7px;border-radius:50%;background:var(--critical);}
+.assist-msgs{flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;gap:9px;}
+.msg{font-size:12.5px;line-height:1.5;padding:8px 11px;border-radius:10px;max-width:88%;}
+.msg.bot{background:var(--panel2);border:1px solid var(--line);align-self:flex-start;}
+.msg.user{background:var(--accent);color:var(--accent-ink);align-self:flex-end;font-weight:600;}
+.assist-chips{display:flex;gap:6px;flex-wrap:wrap;padding:0 14px 10px;}
+.assist-chips button{font-size:10.5px;padding:5px 9px;border-radius:20px;border:1px solid var(--line);color:var(--ink-dim);}
+.assist-config{padding:0 14px 9px;font-size:10px;color:var(--ink-dim);}
+.assist-config summary{cursor:pointer;}
+.assist-config .config-row{display:flex;gap:6px;margin-top:7px;}
+.assist-config input{min-width:0;flex:1;background:var(--panel2);border:1px solid var(--line);border-radius:6px;padding:7px;color:var(--ink);font-size:10px;}
+.assist-config button{border:1px solid var(--line);border-radius:6px;padding:5px 8px;font-size:10px;color:var(--ink);}
+.assist-config .config-note{display:block;margin-top:5px;color:var(--ink-faint);}
+.assist-input{display:flex;border-top:1px solid var(--line);}
+.assist-input input{flex:1;background:none;border:none;padding:11px 12px;color:var(--ink);font-size:12.5px;outline:none;}
+.assist-input button{padding:0 14px;color:var(--critical);font-weight:800;font-size:12px;}
+
+/* MODAL */
+.modal-bg{position:fixed;inset:0;background:rgba(3,1,1,.82);display:none;align-items:center;justify-content:center;z-index:80;padding:16px;}
+.modal-bg.on{display:flex;}
+.modal{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px;max-width:340px;width:100%;text-align:center;}
+.modal .midot{width:50px;height:50px;border-radius:50%;background:var(--critical-bg);color:var(--critical);display:flex;align-items:center;justify-content:center;font-size:22px;margin:0 auto 12px;}
+.modal h4{margin:0 0 6px;font-size:15px;}
+.modal p{font-size:12.5px;color:var(--ink-dim);margin:0 0 16px;}
+.modal button{background:var(--accent);color:var(--accent-ink);font-weight:700;font-size:12.5px;padding:10px 18px;border-radius:9px;}
+.demo-guide{display:none;align-items:center;gap:12px;padding:9px 16px;background:var(--panel2);border-bottom:1px solid var(--line);font-size:11.5px;}
+.demo-guide.on{display:flex;}
+.demo-count{font:600 10px 'JetBrains Mono',monospace;color:var(--critical);white-space:nowrap;}
+.demo-copy{flex:1;color:var(--ink-dim);}
+.demo-copy b{color:var(--ink);}
+.demo-guide button{border:1px solid var(--line);border-radius:6px;padding:5px 9px;font-size:10.5px;color:var(--ink);white-space:nowrap;}
+.demo-guide button.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);font-weight:700;}
+.demo-guide button:disabled{opacity:.45;cursor:default;}
+@media(max-width:600px){.demo-guide{flex-wrap:wrap;gap:7px 10px;padding:9px 10px}.demo-copy{flex-basis:60%;}.demo-guide button{margin-left:auto;}}
+</style>
+</head>
+<body>
+
+<!-- NAV -->
+<header>
+  <div class="brand"><span class="mark">R</span>ResQMesh</div>
+  <div class="pill ok" id="netPill"><span class="d"></span><span class="txt">Mesh Connected</span></div>
+  <div class="pill" id="syncPill"><span class="txt mono">Last sync 2 min ago</span></div>
+  <button class="pill" id="outageBtn"><span class="txt">Simulate flood outage</span></button>
+  <button class="pill" id="demoBtn" onclick="startDemo()"><span class="txt">Run demo</span></button>
+  <div class="nav-spacer"></div>
+  <div class="role-switch">
+    <button class="on" id="roleResponder" onclick="setRole('responder')">Responder</button>
+    <button id="roleCitizen" onclick="setRole('citizen')">Citizen</button>
+    <button id="roleMesh" onclick="setRole('mesh')">Mesh</button>
+  </div>
+  <button class="btn-sos" onclick="raiseDemoSos()"><span class="p"></span>RAISE SOS</button>
+</header>
+
+<div class="demo-guide" id="demoGuide" aria-live="polite">
+  <span class="demo-count" id="demoCount">DEMO 1/5</span>
+  <span class="demo-copy" id="demoCopy"></span>
+  <button id="demoPause" onclick="toggleDemoPause()">Pause</button>
+  <button class="primary" onclick="advanceDemo()">Next step</button>
+  <button onclick="stopDemo()">Close</button>
+</div>
+
+<!-- COMMAND OVERVIEW -->
+<div class="overview" id="overviewStrip">
+  <div class="ov-cell"><b class="mono" style="color:var(--critical)">6</b><span>Active SOS</span></div>
+  <div class="ov-cell"><b class="mono" style="color:var(--info)">9</b><span>Available responders</span></div>
+  <div class="ov-cell"><b class="mono" style="color:var(--warn)">14</b><span>Resources ready</span></div>
+  <div class="ov-cell"><b class="mono" style="color:var(--ok)">88%</b><span>Mesh health</span></div>
+  <div class="ov-cell"><b class="mono">Ullal–Surathkal</b><span>Scenario area · Mangaluru</span></div>
+  <div class="ov-cell"><b class="mono" id="ovSync">2 min ago</b><span>Last synchronization</span></div>
+</div>
+
+<!-- MAIN APP -->
+<div class="app" id="mainApp">
+  <!-- SOS LIST -->
+  <div class="sos-panel">
+    <div class="panel-head"><h3>Incident queue</h3><span class="mono" style="font-size:11px;color:var(--ink-dim)">6 open</span></div>
+    <div class="filters" id="filters">
+      <button class="filter-chip on" data-f="all" onclick="setFilter('all')">All</button>
+      <button class="filter-chip" data-f="critical" onclick="setFilter('critical')">Critical</button>
+      <button class="filter-chip" data-f="high" onclick="setFilter('high')">High</button>
+      <button class="filter-chip" data-f="medium" onclick="setFilter('medium')">Medium</button>
+      <button class="filter-chip" data-f="resolved" onclick="setFilter('resolved')">Resolved</button>
+    </div>
+    <div class="sos-scroll" id="sosScroll"></div>
+  </div>
+
+  <!-- LIVE MAP -->
+  <div class="map-wrap" id="mapWrap">
+    <svg viewBox="0 0 100 100" preserveAspectRatio="none">
+      <defs><pattern id="grid" width="6" height="6" patternUnits="userSpaceOnUse"><path d="M6 0H0V6" fill="none" stroke="#1C2130" stroke-width="0.3"/></pattern></defs>
+      <rect width="100" height="100" fill="url(#grid)"/>
+      <path d="M6 30 L34 26 L58 20 L88 12" fill="none" stroke="#383F52" stroke-width="0.7" stroke-linecap="round"/>
+      <path d="M14 86 L46 56 L64 32 L84 15" fill="none" stroke="#383F52" stroke-width="0.7" stroke-linecap="round"/>
+      <path d="M34 26 L40 21" fill="none" stroke="var(--warn)" stroke-width="1.1" stroke-linecap="round" stroke-dasharray="1.6 1.6"/>
+      <line x1="36" y1="44" x2="30" y2="37" stroke="var(--accent)" stroke-width="0.6" stroke-dasharray="2 1.6"><animate attributeName="stroke-dashoffset" from="0" to="-7" dur="1.4s" repeatCount="indefinite"/></line>
+      <line x1="36" y1="44" x2="62" y2="19" stroke="var(--accent)" stroke-width="0.6" stroke-dasharray="2 1.6"><animate attributeName="stroke-dashoffset" from="0" to="-7" dur="1.4s" repeatCount="indefinite"/></line>
+      <path d="M4 77 C18 72 17 60 31 57 S44 47 49 34" fill="none" stroke="#326C83" stroke-width="1.4" stroke-linecap="round" opacity=".75"/>
+      <g fill="#8291A5" font-family="JetBrains Mono" font-size="2.7">
+        <text x="4" y="81">NETHRAVATHI RIVER</text><text x="12" y="66">ULLAL</text>
+        <text x="45" y="42">WENLOCK HOSPITAL</text><text x="68" y="15">SURATHKAL</text>
+        <text x="55" y="72">NH-66</text><text x="79" y="49">COLLECTOR HQ</text>
+      </g>
+    </svg>
+    <div id="mapMarkers"></div>
+    <div class="map-top-stat"><span class="d"></span>Mangaluru · Aug 2026 demo</div>
+    <div class="legend">
+      <div class="lk"><span class="sw" style="background:var(--critical)"></span>SOS alert</div>
+      <div class="lk"><span class="sw" style="background:var(--info)"></span>Ambulance / hospital</div>
+      <div class="lk"><span class="sw" style="background:var(--warn)"></span>Shelter / blocked road</div>
+      <div class="lk"><span class="sw" style="background:var(--accent)"></span>Relay node</div>
+    </div>
+  </div>
+
+  <!-- CONTEXT PANEL -->
+  <div class="ctx-panel">
+    <div class="ctx-tabs">
+      <button class="on" data-t="trust" onclick="setTab('trust')">Trust</button>
+      <button data-t="match" onclick="setTab('match')">Match</button>
+      <button data-t="graph" onclick="setTab('graph')">Graph</button>
+    </div>
+    <div class="ctx-body" id="ctxBody"></div>
+  </div>
+</div>
+
+<!-- P2P MESH SIMULATOR -->
+<section class="mesh-view" id="meshView" aria-label="Peer-to-peer mesh simulation">
+  <div class="mesh-view-head">
+    <div><h2>P2P mesh simulator</h2><p>Mangaluru flood response · packet path is simulated, landmarks are real</p></div>
+    <div class="mesh-controls">
+      <button onclick="simulateFloodOutage()">Simulate flood outage</button>
+      <button onclick="sendDuplicateSos()">Send duplicate</button>
+      <button onclick="restoreLink()">Restore link</button>
+    </div>
+  </div>
+  <div class="mesh-workspace">
+    <div class="mesh-route-panel">
+      <svg class="mesh-route" viewBox="0 0 760 250" role="img" aria-label="Five peer nodes relay an SOS from Ullal to the Mangaluru collector headquarters">
+        <path class="route-coast" d="M25 203 C110 177 91 143 175 148 S260 87 320 100 S440 48 520 67 S624 22 735 37"/>
+        <path class="route-road" d="M30 215 C133 171 177 181 265 130 S411 107 500 76 S621 56 727 30"/>
+        <path class="route-link" id="routeLink" d="M70 196 C165 170 215 153 312 122 S444 98 542 70 S650 48 710 34"/>
+        <circle class="route-packet" id="routePacket" r="5" cx="70" cy="196"><animateMotion id="packetMotion" dur="12s" repeatCount="indefinite" path="M0 0 C95 -26 145 -43 242 -74 S374 -98 472 -126 S580 -148 640 -162"/></circle>
+        <g class="route-stop" data-hop="0" transform="translate(70 196)"><circle r="12"/><text y="29">Ullal</text></g>
+        <g class="route-stop" data-hop="1" transform="translate(225 153)"><circle r="12"/><text y="29">Neha · BLE</text></g>
+        <g class="route-stop" data-hop="2" transform="translate(385 106)"><circle r="12"/><text y="29">Volunteer bike</text></g>
+        <g class="route-stop" data-hop="3" transform="translate(550 68)"><circle r="12"/><text y="29">NDRF · Surathkal</text></g>
+        <g class="route-stop" data-hop="4" transform="translate(710 34)"><circle r="12"/><text y="29">Collector HQ</text></g>
+      </svg>
+      <div class="mesh-step-info" aria-live="polite"><span id="meshStepCount" class="mono">HOP 1 / 5</span><span id="meshNarration">Victim phone in Ullal queues the signed SOS packet.</span></div>
+      <div class="mesh-playback">
+        <button onclick="restartMeshReplay()">Restart</button>
+        <button id="meshPlayButton" onclick="toggleMeshReplay()">Pause</button>
+        <button class="primary" onclick="advanceMeshReplay()">Next hop</button>
+      </div>
+      <div class="mesh-node-list" id="meshNodeList"></div>
+    </div>
+    <aside class="mesh-log-panel">
+      <div class="mesh-log-head"><b>Live mesh log</b><span class="mono">SIMULATED</span></div>
+      <div class="mesh-log" id="meshLog" aria-live="polite"></div>
+    </aside>
+  </div>
+</section>
+
+<!-- MESH FLOW DOCK -->
+<div class="mesh-dock" id="meshDock">
+  <div class="flow-node active"><span class="fn-dot"></span><span>Victim · Ullal</span></div>
+  <div class="flow-track"><div class="fdot"></div></div>
+  <div class="flow-node"><span class="fn-dot"></span><span>Neha · BLE</span></div>
+  <div class="flow-track"><div class="fdot" style="animation-delay:-.5s"></div></div>
+  <div class="flow-node"><span class="fn-dot"></span><span>Volunteer Bike</span></div>
+  <div class="flow-track"><div class="fdot" style="animation-delay:-1s"></div></div>
+  <div class="flow-node"><span class="fn-dot"></span><span>NDRF · Surathkal</span></div>
+  <div class="flow-track"><div class="fdot" style="animation-delay:-1.5s"></div></div>
+  <div class="flow-node"><span class="fn-dot"></span><span>Collector HQ</span></div>
+  <div class="mesh-meta">
+    <div>Packet <b class="mono" id="mPacket">0x8F9A2</b></div>
+    <div>Hops <b class="mono" id="mHops">3</b></div>
+    <div>TTL <b class="mono" id="mTtl">7</b></div>
+    <div>Status <b class="mono" style="color:var(--warn)" id="mStatus">Relaying</b></div>
+  </div>
+</div>
+
+<!-- CITIZEN MODE -->
+<div class="citizen-view" id="citizenView">
+  <div class="c-title">Emergency assistance</div>
+  <p class="c-sub">Demo simulation: your report queues locally, relays through nearby peers, then appears in the responder queue.</p>
+  <button class="c-sos-btn" onclick="submitCitizenSos()"><b>SEND SOS</b><span>Offline · simulated mesh</span></button>
+
+  <div class="c-field"><label>Emergency type</label>
+    <div class="chip-select" id="typeChips">
+      <button class="on" onclick="pick(this,'type')">Flood</button>
+      <button onclick="pick(this,'type')">Medical</button>
+      <button onclick="pick(this,'type')">Trapped</button>
+      <button onclick="pick(this,'type')">Fire</button>
+      <button onclick="pick(this,'type')">Other</button>
+    </div>
+  </div>
+  <div class="c-field"><label>Location</label>
+    <button class="c-loc-btn" id="locBtn" onclick="shareLocation()"><span>Share my location</span><span id="locStatus">Tap to capture</span></button>
+  </div>
+  <div class="c-field"><label>People affected</label><input type="number" value="1" min="1" id="peopleCount"></div>
+  <div class="c-field"><label class="c-check"><input type="checkbox" id="medFlag"> This includes a medical emergency</label></div>
+  <div class="c-field"><label>Short description</label><textarea placeholder="What's happening, briefly"></textarea></div>
+  <button class="c-submit" onclick="submitCitizenSos()">Send SOS (offline)</button>
+
+  <div class="c-status" id="citizenStatus">
+    <div class="step" id="cs1"><span class="sd"></span>Signed &amp; queued in this tab (demo)</div>
+    <div class="step" id="cs2"><span class="sd"></span>Simulated BLE peer relay · Neha's phone</div>
+    <div class="step" id="cs3"><span class="sd"></span>Simulated response match · NDRF Surathkal</div>
+    <div class="step" id="cs4"><span class="sd"></span>Simulated sync · Collector HQ</div>
+  </div>
+</div>
+
+<!-- ASSISTANT -->
+<button class="assist-fab" onclick="toggleAssist()">◎</button>
+<div class="assist-panel" id="assistPanel">
+  <div class="assist-head"><span class="ad"></span>Relay — offline scenario assistant</div>
+  <div class="assist-msgs" id="assistMsgs">
+    <div class="msg bot">Ask about SOS status, shelters, hospital capacity, or road conditions in this simulated scenario.</div>
+  </div>
+  <div class="assist-chips">
+    <button onclick="askAssist('nearest shelter')">Nearest shelter</button>
+    <button onclick="askAssist('hospital capacity')">Hospital capacity</button>
+    <button onclick="askAssist('road blocked')">Road status</button>
+    <button onclick="askAssist('sos status')">My SOS status</button>
+  </div>
+  <details class="assist-config">
+    <summary>Connect Gemini (optional)</summary>
+    <div class="config-row"><input id="geminiKey" type="password" autocomplete="off" placeholder="Gemini API key"><button onclick="connectGemini()">Use this tab</button><button onclick="forgetGemini()">Forget</button></div>
+    <span class="config-note" id="geminiStatus">Local answers work without a key. Browser demo only; key stays in memory until reload.</span>
+  </details>
+  <div class="assist-input">
+    <input id="assistInput" placeholder="Ask about resources, roads, SOS…" onkeydown="if(event.key==='Enter')sendAssist()">
+    <button onclick="sendAssist()">Send</button>
+  </div>
+</div>
+
+<!-- SOS MODAL -->
+<div class="modal-bg" id="sosModal">
+  <div class="modal">
+    <div class="midot">✓</div>
+    <h4>SOS broadcast over mesh</h4>
+    <p>Scenario simulation only. Packet progress appears in the queue and mesh flow panel.</p>
+    <button onclick="closeSosModal()">Got it</button>
+  </div>
+</div>
+
+<script>
+/* ---------------- MOCK DATA ---------------- */
+const sosData = [
+  {id:'SOS-1042',priority:'critical',title:'Family of 4 trapped · Ullal Bypass Rd',loc:'Ullal · Nethravathi overflow',time:'10:42 · simulated',x:24,y:72,hops:3,ttl:7,packet:'0x8F9A2',status:'Relaying',trust:{source:"Neha's Phone · BLE relay",reported:'28 Aug · 10:42',corrob:4,sig:'Verified · simulated',fresh:92,conf:94,conflict:false},type:'trapped'},
+  {id:'SOS-1043',priority:'critical',title:'Elderly woman, no medication · Kadri Hills',loc:'Kadri Hills · Mangaluru',time:'10:39 · simulated',x:49,y:52,hops:2,ttl:9,packet:'0x2C114',status:'Delivered',trust:{source:'Volunteer Bike · relay',reported:'28 Aug · 10:39',corrob:1,sig:'Verified · simulated',fresh:81,conf:76,conflict:false},type:'medical'},
+  {id:'SOS-1044',priority:'high',title:'Water rising near riverbank',loc:'Nethravathi River · Ullal',time:'10:33 · simulated',x:31,y:65,hops:4,ttl:5,packet:'0x77AE1',status:'Relaying',trust:{source:'NDRF Field Vehicle · Surathkal',reported:'28 Aug · 10:33',corrob:2,sig:'Verified · simulated',fresh:70,conf:83,conflict:false},type:'trapped'},
+  {id:'SOS-1045',priority:'high',title:'Medical evacuation · Ullal coast',loc:'Ullal Beach Road · Mangaluru',time:'10:28 · simulated',x:19,y:78,hops:1,ttl:8,packet:'0x9B203',status:'Delivered',trust:{source:"Neha's Phone · BLE relay",reported:'28 Aug · 10:28',corrob:1,sig:'Verified · simulated',fresh:65,conf:71,conflict:false},type:'medical'},
+  {id:'SOS-1046',priority:'medium',title:'Flood access blocked · NH-66',loc:'NH-66 · Mangaluru',time:'10:20 · simulated',x:56,y:61,hops:2,ttl:6,packet:'0x4E872',status:'Delivered',trust:{source:'Volunteer Bike · relay',reported:'28 Aug · 10:20',corrob:3,sig:'Verified · simulated',fresh:58,conf:88,conflict:true},type:'other'},
+  {id:'SOS-1040',priority:'resolved',title:'Evacuation completed · Surathkal',loc:'Surathkal · Mangaluru',time:'09:58 · simulated',x:70,y:24,hops:2,ttl:0,packet:'0x11FA0',status:'Resolved',trust:{source:'NDRF Field Vehicle · Surathkal',reported:'28 Aug · 09:58',corrob:2,sig:'Verified · simulated',fresh:40,conf:90,conflict:false},type:'other'}
+];
+function fingerprintFor(s){return `${s.type}|${s.title.trim().toLowerCase()}|${s.loc.trim().toLowerCase()}`;}
+class DemoBloomFilter{
+  constructor(size=512,hashCount=3){this.size=size;this.hashCount=hashCount;this.bits=new Uint8Array(Math.ceil(size/8));}
+  indices(value){
+    let first=2166136261,second=0x9e3779b9;
+    for(const char of value){const code=char.charCodeAt(0);first=Math.imul(first^code,16777619)>>>0;second=Math.imul(second^code,0x5bd1e995)>>>0;}
+    return Array.from({length:this.hashCount},(_,i)=>(first+i*second+i*i)%this.size);
+  }
+  add(value){for(const index of this.indices(value))this.bits[index>>3]|=1<<(index&7);}
+  mightContain(value){return this.indices(value).every(index=>(this.bits[index>>3]&(1<<(index&7)))!==0);}
+}
+const seenFingerprints=new DemoBloomFilter();
+sosData.forEach(s=>seenFingerprints.add(fingerprintFor(s)));
+const scenarioClock=Date.now();
+sosData.forEach((s,index)=>{s.createdAt=scenarioClock-index*60000;});
+const priorityLabel={critical:'CRITICAL',high:'HIGH',medium:'MEDIUM',resolved:'RESOLVED'};
+const otherMarkers=[
+  {t:'Ambulance 04 · available (simulated)',c:'var(--info)',x:45,y:51,l:'A'},{t:'NDRF Field Vehicle · Surathkal (simulated)',c:'var(--info)',x:70,y:24,l:'N'},
+  {t:'Wenlock District Hospital · capacity simulated',c:'var(--info)',x:47,y:43,l:'H'},{t:'Collector Office · command HQ',c:'var(--warn)',x:82,y:42,l:'Q'},
+  {t:'Ullal Beach Road · flooding simulated',c:'var(--warn)',x:20,y:75,l:'×'},{t:"Neha's Phone · BLE relay",c:'var(--accent)',x:34,y:60,l:'R'},{t:'Volunteer Bike · relay',c:'var(--accent)',x:51,y:63,l:'B'}
+];
+const matches={
+  medical:[{chain:'MEDICAL → AMBULANCE → 1.8km → AVAILABLE',name:'Ambulance 04',eta:'ETA 6 min · simulated'},{chain:'MEDICAL → HOSPITAL → 3.2km → CAPACITY MOCKED',name:'Wenlock District Hospital',eta:'ETA 11 min · simulated'}],
+  trapped:[{chain:'TRAPPED → NDRF FIELD TEAM → EN ROUTE',name:'NDRF Field Vehicle · Surathkal',eta:'ETA 6 min · simulated'},{chain:'MEDICAL SUPPORT → AMBULANCE → HOSPITAL',name:'Wenlock Hospital + Ambulance 04',eta:'ETA 11 min · simulated'},{chain:'TRAPPED → BOAT / EQUIPMENT → AVAILABLE',name:'Volunteer Bike · Relay Team',eta:'ETA 14 min · simulated'}],
+  other:[{chain:'GENERAL → VOLUNTEER → 2.6km → AVAILABLE',name:'Community Response Unit',eta:'ETA 9 min'}]
+};
+
+let selected=sosData[0], activeFilter='all', activeTab='trust', currentRole='responder';
+let outage=false, relayOverride=null, demoStep=-1, demoTimer=null, demoPaused=false;
+
+/* ---------------- RENDER ---------------- */
+function renderSosList(){
+  const list=sosData.filter(s=>activeFilter==='all'||s.priority===activeFilter);
+  document.getElementById('sosScroll').innerHTML=list.map(s=>`
+    <div class="sos-item ${selected&&selected.id===s.id?'sel':''}" onclick="selectSos('${s.id}')">
+      <div class="top"><span class="id mono">${s.id}</span><span class="badge b-${s.priority}">${priorityLabel[s.priority]}</span></div>
+      <h4>${escapeHtml(s.title)}</h4>
+      <div class="meta">${escapeHtml(s.loc)} · ${escapeHtml(s.time)} · ${s.hops} hops</div>
+    </div>`).join('');
+}
+function escapeHtml(value){
+  return String(value).replace(/[&<>"']/g,char=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[char]));
+}
+function renderMap(){
+  let html='';
+  sosData.forEach(s=>{
+    const ring = s.priority==='critical' ? `<span class="m-ring"></span>`:'';
+    html+=`<div class="marker" style="left:${s.x}%;top:${s.y}%" title="${escapeHtml(s.id)} · ${escapeHtml(s.title)}" onclick="selectSos('${s.id}')">
+      <span class="m-dot" style="width:24px;height:24px;background:var(--critical)">${ring}<span style="position:relative">!</span></span></div>`;
+  });
+  otherMarkers.forEach(m=>{
+    html+=`<div class="marker" style="left:${m.x}%;top:${m.y}%" title="${m.t}">
+      <span class="m-dot" style="width:${m.l?22:12}px;height:${m.l?22:12}px;background:${m.c}">${m.l}</span></div>`;
+  });
+  document.getElementById('mapMarkers').innerHTML=html;
+}
+function renderCtx(){
+  const s=selected; if(!s){document.getElementById('ctxBody').innerHTML='<div class="sub">Select an SOS to inspect.</div>';return;}
+  const body=document.getElementById('ctxBody');
+  if(activeTab==='trust'){
+    const t=s.trust;
+    const ageMinutes=(Date.now()-(s.createdAt||Date.now()))/60000;
+    const freshness=Math.max(5,Math.round(t.fresh-ageMinutes*5));
+    const confidence=Math.max(10,Math.round(t.conf-ageMinutes*2));
+    body.innerHTML=`<h4>${s.id}</h4><div class="sub">${s.title}</div>
+      <div class="kv"><span>Source</span><span>${t.source}</span></div>
+      <div class="kv"><span>Reported</span><span>${t.reported}</span></div>
+      <div class="kv"><span>Corroborated</span><span>${t.corrob} node${t.corrob!==1?'s':''}</span></div>
+      <div class="kv"><span>Signature</span><span style="color:var(--warn)">${t.sig}</span></div>
+      <div style="margin-top:12px"><div class="kv" style="border:none;padding-bottom:2px"><span>Freshness · decays in demo</span><span>${freshness}%</span></div><div class="conf-bar"><div class="conf-fill" style="width:${freshness}%"></div></div></div>
+      <div style="margin-top:10px"><div class="kv" style="border:none;padding-bottom:2px"><span>Confidence · age adjusted</span><span>${confidence}%</span></div><div class="conf-bar"><div class="conf-fill" style="width:${confidence}%;background:var(--info)"></div></div></div>
+      ${t.conflict?`<div style="margin-top:14px;background:var(--warn-bg);border:1px solid rgba(226,59,59,.35);border-radius:10px;padding:10px;font-size:11.5px;color:var(--warn)">Conflicts with a newer report. Weighting in favor of the higher-corroboration source rather than auto-accepting.</div>`:''}`;
+  } else if(activeTab==='match'){
+    const rows=(matches[s.type]||matches.other).map(m=>`<div class="match-row"><div class="chain mono">${m.chain}</div><div class="name">${m.name}</div><div class="eta">${m.eta}</div></div>`).join('');
+    body.innerHTML=`<h4>Resource matching</h4><div class="sub">Suggested for ${s.id}</div>${rows}`;
+  } else {
+      const resource=(matches[s.type]||matches.other).map(m=>m.name).join(' / ');
+    const area=s.loc.split('·')[0].trim();
+    const entities=[
+      {x:130,y:38,label:'SOS',detail:s.id,color:'#FF1A2E'},
+      {x:55,y:118,label:'Person',detail:`${s.people||1} affected`,color:'#B98686'},
+      {x:205,y:118,label:'Relay',detail:s.trust.source,color:'#D9807F'},
+      {x:55,y:202,label:'Resource',detail:resource,color:'#E23B3B'},
+      {x:205,y:202,label:'Area',detail:area,color:'#D9807F'}
+    ];
+    const edges=[
+      {x1:130,y1:54,x2:64,y2:102,label:'NEEDS',x:84,y:78},
+      {x1:130,y1:54,x2:196,y2:102,label:'RELAYED VIA',x:151,y:78},
+      {x1:65,y1:134,x2:65,y2:186,label:'MATCHED TO',x:69,y:163},
+      {x1:195,y1:134,x2:195,y2:186,label:'LOCATED IN',x:199,y:163}
+    ];
+    body.innerHTML=`<h4>Knowledge graph</h4><div class="sub">Linked scenario entities for ${s.id}</div>
+      <svg class="graph-svg" viewBox="0 0 260 250" role="img" aria-label="Knowledge graph showing the selected SOS, affected people, relay source, matched resource, and incident area">
+        <g class="graph-edge" stroke="#383F52" stroke-width="1">${edges.map(e=>`<line x1="${e.x1}" y1="${e.y1}" x2="${e.x2}" y2="${e.y2}"/>`).join('')}</g>
+        <g font-family="JetBrains Mono" font-size="6.5" fill="#B98686">${edges.map(e=>`<text x="${e.x}" y="${e.y}" transform="rotate(-90 ${e.x} ${e.y})">${e.label}</text>`).join('')}</g>
+        <g class="graph-nodes" font-family="Manrope" font-size="9" font-weight="700">${entities.map((n,i)=>`<g><title>${escapeHtml(n.detail)}</title><circle cx="${n.x}" cy="${n.y}" r="17" fill="${i===0?'#3A0A0F':'#280B0B'}" stroke="${n.color}"/><text x="${n.x}" y="${n.y+3}" fill="${n.color}" text-anchor="middle">${n.label}</text></g>`).join('')}</g>
+        <g font-family="Manrope" font-size="8" fill="#9CA6B8" text-anchor="middle">${entities.map(n=>`<text x="${n.x}" y="${n.y+31}">${escapeHtml(n.detail.length>19?n.detail.slice(0,17)+'…':n.detail)}</text>`).join('')}</g>
+      </svg>
+      <div class="sub">Scenario relationships update with the selected incident. Entity and resource values are simulated.</div>`;
+  }
+}
+function renderMeshDock(){
+  const s=selected; if(!s)return;
+  const r=relayOverride&&relayOverride.id===s.id?relayOverride:s;
+  document.getElementById('mPacket').textContent=r.packet;
+  document.getElementById('mHops').textContent=r.hops;
+  document.getElementById('mTtl').textContent=r.ttl;
+  const st=document.getElementById('mStatus'); st.textContent=r.status;
+  st.style.color = ['Delivered','Synced'].includes(r.status)?'var(--ok)': r.status==='Resolved'?'var(--ink-dim)':'var(--warn)';
+  const activeNodes=r.activeNodes||(r.status==='Delivered'||r.status==='Resolved'?5:3);
+  document.querySelectorAll('.flow-node').forEach((n,i)=>n.classList.toggle('active', i < activeNodes));
+}
+function renderOverview(){
+  const open=sosData.filter(s=>s.priority!=='resolved').length;
+  document.querySelector('#overviewStrip .ov-cell b').textContent=open;
+  document.querySelector('.sos-panel .panel-head .mono').textContent=`${open} open`;
+}
+
+function selectSos(id){ selected=sosData.find(s=>s.id===id); renderSosList(); renderCtx(); renderMeshDock(); }
+function setFilter(f){ activeFilter=f; document.querySelectorAll('.filter-chip').forEach(b=>b.classList.toggle('on', b.dataset.f===f)); renderSosList(); }
+function setTab(t){ activeTab=t; document.querySelectorAll('.ctx-tabs button').forEach(b=>b.classList.toggle('on', b.dataset.t===t)); renderCtx(); }
+
+/* ---------------- ROLE / OUTAGE ---------------- */
+function setRole(r){
+  const previousRole=currentRole;
+  currentRole=r;
+  document.getElementById('roleResponder').classList.toggle('on', r==='responder');
+  document.getElementById('roleCitizen').classList.toggle('on', r==='citizen');
+  document.getElementById('roleMesh').classList.toggle('on', r==='mesh');
+  document.getElementById('mainApp').style.display = r==='responder' ? 'grid':'none';
+  document.getElementById('meshDock').style.display = r==='responder' ? 'flex':'none';
+  document.getElementById('overviewStrip').style.display = r==='responder' ? 'flex':'none';
+  document.getElementById('citizenView').classList.toggle('on', r==='citizen');
+  document.getElementById('meshView').classList.toggle('on', r==='mesh');
+  if(r==='mesh'&&previousRole!=='mesh')startMeshReplay();
+  if(previousRole==='mesh'&&r!=='mesh'){clearInterval(meshTimer);meshPaused=true;}
+}
+function setOutageState(value){
+  const changed=outage!==value;
+  outage=value;
+  const np=document.getElementById('netPill'), sp=document.getElementById('syncPill');
+  if(outage){ np.className='pill warn'; np.querySelector('.txt').textContent='Internet unavailable — mesh active'; sp.querySelector('.txt').textContent='Queued, awaiting relay'; document.getElementById('ovSync').textContent='Waiting for link'; }
+  else{ np.className='pill ok'; np.querySelector('.txt').textContent='Mesh Connected'; sp.querySelector('.txt').textContent='Last sync just now'; document.getElementById('ovSync').textContent='Just now'; }
+  if(changed&&meshLogEntries)appendMeshLog(outage?'Flood outage simulated. Internet uplink is down; BLE peers remain available.':'Internet link restored. Queued packets can sync to Collector HQ.',outage);
+}
+document.getElementById('outageBtn').onclick=()=>setOutageState(!outage);
+
+const meshNodes=[
+  {title:'Victim Phone · Ullal',short:'Victim phone · Ullal',label:'Ullal',narration:'Victim phone near Ullal signs and queues the SOS packet.'},
+  {title:"Neha's Phone · BLE relay",short:"Neha's phone · BLE",label:'Neha · BLE',narration:"Neha's phone detects the Bluetooth beacon and forwards the packet."},
+  {title:'Volunteer Bike · Relay',short:'Volunteer bike · relay',label:'Volunteer bike',narration:'Volunteer bike carries the packet beyond the first BLE range.'},
+  {title:'NDRF Field Vehicle · Surathkal',short:'NDRF vehicle · Surathkal',label:'NDRF · Surathkal',narration:'NDRF field vehicle in Surathkal receives the relayed SOS.'},
+  {title:'District Collector Office · HQ',short:'Collector Office · HQ',label:'Collector HQ',narration:"Collector's office receives and acknowledges the incident."}
+];
+const meshPositions=[[70,196],[225,153],[385,106],[550,68],[710,34]];
+let meshLogEntries=[],meshStep=-1,meshTimer=null,meshPaused=false;
+function appendMeshLog(message,alert=false){
+  meshLogEntries.unshift({time:new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit',second:'2-digit'}),message,alert});
+  meshLogEntries=meshLogEntries.slice(0,60);
+  const log=document.getElementById('meshLog');
+  if(log)log.innerHTML=meshLogEntries.map(entry=>`<div class="mesh-log-entry ${entry.alert?'alert':''}"><time>${entry.time}</time><span class="event">${escapeHtml(entry.message)}</span></div>`).join('');
+}
+function renderMeshNodes(){
+  document.getElementById('meshNodeList').innerHTML=meshNodes.map((node,index)=>`<div class="mesh-node" data-node="${index}"><b>${escapeHtml(node.short)}</b><span>${index===0?'SOS source':index===4?'Command post':'BLE peer relay'}</span></div>`).join('');
+}
+function applyMeshHop(index){
+  meshStep=index;
+  const [x,y]=meshPositions[index];
+  const packet=document.getElementById('routePacket');packet.setAttribute('cx',x);packet.setAttribute('cy',y);
+  document.querySelectorAll('.route-stop').forEach((node,i)=>node.classList.toggle('is-active',i===index));
+  document.querySelectorAll('.mesh-node').forEach((node,i)=>node.classList.toggle('is-active',i===index));
+  document.querySelectorAll('#meshDock .flow-node').forEach((node,i)=>node.classList.toggle('active',i<=index));
+  document.getElementById('meshStepCount').textContent=`HOP ${index+1} / ${meshNodes.length}`;
+  document.getElementById('meshNarration').textContent=meshNodes[index].narration;
+  document.getElementById('routeLink').classList.add('is-live');
+  document.getElementById('meshPlayButton').textContent=meshPaused?'Play':'Pause';
+  if(selected){
+    const status=index===meshNodes.length-1?(outage?'Queued for sync':'Synced'):index===0?'Queued':'Relaying';
+    selected.hops=index;selected.ttl=Math.max(0,7-index);selected.status=status;
+    relayOverride={id:selected.id,packet:selected.packet,status,hops:index,ttl:Math.max(0,7-index),activeNodes:index+1};
+    renderSosList();renderMeshDock();
+  }
+  appendMeshLog(`${meshNodes[index].title}: ${index===0?'packet created':index===meshNodes.length-1?'delivery acknowledged':'packet received and forwarded'}.`);
+  if(index===meshNodes.length-1&&!outage){appendMeshLog('Incident synced to Collector HQ. Mock dispatch only.');}
+}
+function advanceMeshReplay(){
+  if(meshStep<0){applyMeshHop(0);return;}
+  if(meshStep===meshNodes.length-1){restartMeshReplay();return;}
+  applyMeshHop(meshStep+1);
+}
+function scheduleMeshReplay(){
+  clearInterval(meshTimer);
+  if(!meshPaused&&meshStep>=0&&meshStep<meshNodes.length-1)meshTimer=setInterval(advanceMeshReplay,2600);
+}
+function startMeshReplay(){
+  clearInterval(meshTimer);meshPaused=false;meshLogEntries=[];renderMeshNodes();renderMeshLogClear();applyMeshHop(0);scheduleMeshReplay();
+}
+function restartMeshReplay(){startMeshReplay();}
+function toggleMeshReplay(){
+  if(meshStep===meshNodes.length-1){restartMeshReplay();return;}
+  meshPaused=!meshPaused;document.getElementById('meshPlayButton').textContent=meshPaused?'Play':'Pause';scheduleMeshReplay();
+}
+function renderMeshLogClear(){const log=document.getElementById('meshLog');if(log)log.innerHTML='';}
+function simulateFloodOutage(){setOutageState(true);appendMeshLog('Flood scenario isolates the uplink. BLE peer-to-peer relay remains active.');}
+function sendDuplicateSos(){
+  const fingerprint=fingerprintFor(selected);
+  if(seenFingerprints.mightContain(fingerprint)){appendMeshLog(`Duplicate packet for ${selected.id} dropped by simulated Bloom filter.`,true);return;}
+  seenFingerprints.add(fingerprint);appendMeshLog(`Unique SOS packet accepted for ${selected.id}.`);
+}
+function restoreLink(){
+  setOutageState(false);
+  let synced=0;
+  sosData.forEach(s=>{if(s.status==='Queued for sync'||s.status==='Queued offline'){s.status='Synced';synced++;}});
+  if(selected&&relayOverride&&relayOverride.id===selected.id&&relayOverride.status.startsWith('Queued'))relayOverride={...relayOverride,status:'Synced',activeNodes:5};
+  appendMeshLog(synced?`${synced} queued incident(s) synced to Collector HQ.`:'Link restored. No queued incidents; mesh is ready.');
+  renderSosList();renderCtx();renderMeshDock();
+}
+
+/* ---------------- GUIDED DEMO ---------------- */
+const demoSteps=[
+  {tab:'trust',status:'Queued offline',hops:0,nodes:1,title:'1 · Mangaluru flood outage',copy:'The Ullal uplink is unavailable. The SOS stays queued while nearby BLE peers remain active.'},
+  {tab:'trust',status:'Relaying',hops:2,nodes:3,title:'2 · Peer-to-peer relay',copy:"Ullal → Neha's phone → Volunteer Bike. Open Mesh to watch the packet move hop by hop."},
+  {tab:'graph',status:'Relaying',hops:3,nodes:3,title:'3 · Shared knowledge graph',copy:'The Ullal SOS links people, relay nodes, Nethravathi River, and response resources.'},
+  {tab:'match',status:'Responder assigned',hops:4,nodes:4,title:'4 · Resource match',copy:'The incident type is matched to an available nearby response resource with a simulated ETA.'},
+  {tab:'match',status:'Synced',hops:5,nodes:5,title:'5 · Reconnect and sync',copy:'Connectivity returns. The relayed incident reaches the command post and the queue stays intact.'}
+];
+function scheduleDemo(){
+  clearTimeout(demoTimer);
+  if(!demoPaused&&demoStep>=0&&demoStep<demoSteps.length-1) demoTimer=setTimeout(advanceDemo,5200);
+}
+function applyDemoStep(index){
+  demoStep=index;
+  if(index===1){selected=sosData.find(s=>s.id==='SOS-1042')||sosData[0];setRole('mesh');}
+  else if(currentRole!=='responder')setRole('responder');
+  const step=demoSteps[index];
+  if(index===0)setOutageState(true);
+  if(index===demoSteps.length-1)setOutageState(false);
+  selected=sosData.find(s=>s.id==='SOS-1042')||sosData[0];
+  activeFilter='all';
+  document.querySelectorAll('.filter-chip').forEach(b=>b.classList.toggle('on',b.dataset.f==='all'));
+  activeTab=step.tab;
+  document.querySelectorAll('.ctx-tabs button').forEach(b=>b.classList.toggle('on',b.dataset.t===step.tab));
+  selected.hops=step.hops;selected.ttl=Math.max(0,7-step.hops);selected.status=step.status;
+  relayOverride={id:selected.id,packet:selected.packet,status:step.status,hops:step.hops,ttl:Math.max(0,7-step.hops),activeNodes:step.nodes};
+  document.getElementById('demoCount').textContent=`DEMO ${index+1}/${demoSteps.length}`;
+  document.getElementById('demoCopy').innerHTML=`<b>${step.title}</b> ${step.copy}`;
+  document.getElementById('demoBtn').querySelector('.txt').textContent=index===demoSteps.length-1?'Replay demo':'Demo running';
+  document.getElementById('demoPause').textContent=index===demoSteps.length-1?'Replay':demoPaused?'Play':'Pause';
+  document.querySelector('#demoGuide .primary').disabled=index===demoSteps.length-1;
+  renderSosList();renderCtx();renderMeshDock();
+  scheduleDemo();
+}
+function startDemo(){
+  clearTimeout(demoTimer);setRole('responder');demoPaused=false;
+  document.getElementById('demoGuide').classList.add('on');
+  document.getElementById('demoBtn').querySelector('.txt').textContent='Demo running';
+  applyDemoStep(0);
+}
+function advanceDemo(){
+  if(demoStep<0)return;
+  if(demoStep===demoSteps.length-1){startDemo();return;}
+  demoPaused=false;applyDemoStep(demoStep+1);
+}
+function toggleDemoPause(){
+  if(demoStep===demoSteps.length-1){startDemo();return;}
+  demoPaused=!demoPaused;
+  document.getElementById('demoPause').textContent=demoPaused?'Play':'Pause';
+  scheduleDemo();
+}
+function stopDemo(){
+  clearTimeout(demoTimer);demoTimer=null;demoStep=-1;demoPaused=false;relayOverride=null;
+  document.getElementById('demoGuide').classList.remove('on');
+  document.getElementById('demoBtn').querySelector('.txt').textContent='Run demo';
+  setOutageState(false);renderMeshDock();
+}
+
+/* ---------------- CITIZEN FORM ---------------- */
+function pick(el,group){ el.parentElement.querySelectorAll('button').forEach(b=>b.classList.remove('on')); el.classList.add('on'); }
+function shareLocation(){
+  const b=document.getElementById('locBtn'); b.classList.add('got');
+  document.getElementById('locStatus').textContent='12.8152°N, 74.8584°E · Ullal demo ✓';
+}
+
+/* ---------------- SOS MODAL / CITIZEN STATUS ---------------- */
+function openSosModal(){
+  document.getElementById('sosModal').classList.add('on');
+}
+function closeSosModal(){ document.getElementById('sosModal').classList.remove('on'); }
+let nextSosNumber=1047,statusTimer=null;
+function createSos({type='other',title,people=1,description=''}){
+  const id=`SOS-${nextSosNumber++}`;
+  const packet=`0x${(0x8A10+nextSosNumber*73).toString(16).toUpperCase()}`;
+  const time=new Date().toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+  const sos={id,priority:type==='medical'||type==='trapped'?'critical':'high',title,loc:'Ullal · Mangaluru demo location',time:`${time} · just now`,x:24,y:72,hops:0,ttl:7,packet,status:'Queued',people,type,
+    description,trust:{source:'Citizen device (demo)',reported:`${time}`,corrob:0,sig:'Device signed (demo)',fresh:100,conf:68,conflict:false}};
+  sos.createdAt=Date.now();sosData.unshift(sos);seenFingerprints.add(fingerprintFor(sos));selected=sos;activeFilter='all';relayOverride={id,packet,status:'Queued',hops:0,ttl:7,activeNodes:1};
+  document.querySelectorAll('.filter-chip').forEach(b=>b.classList.toggle('on',b.dataset.f==='all'));
+  renderSosList();renderMap();renderCtx();renderMeshDock();renderOverview();
+  return sos;
+}
+function submitCitizenSos(){
+  const selectedType=document.querySelector('#typeChips button.on')?.textContent.toLowerCase()||'other';
+  const medical=document.getElementById('medFlag').checked||selectedType==='medical';
+  const type=medical?'medical':selectedType==='trapped'||selectedType==='flood'?'trapped':'other';
+  const people=Math.max(1,Number(document.getElementById('peopleCount').value)||1);
+  const description=document.querySelector('#citizenView textarea').value.trim();
+  const title=description||`${selectedType[0].toUpperCase()+selectedType.slice(1)} assistance · ${people} affected`;
+  const sos=createSos({type,title,people,description});
+  document.querySelector('#sosModal h4').textContent=`${sos.id} queued on mesh`;
+  document.querySelector('#sosModal p').textContent='This is a simulated report. It will relay peer-to-peer without internet; sample resources and ETAs are not live dispatch data.';
+  openSosModal();runCitizenStatus(sos);
+}
+function raiseDemoSos(){
+  const sos=createSos({type:'medical',title:'Demo responder alert · medical evacuation',people:1});
+  document.querySelector('#sosModal h4').textContent=`${sos.id} added to incident queue`;
+  document.querySelector('#sosModal p').textContent='Simulated incident created. Follow its packet, peer hops, knowledge graph, and resource match in the responder console.';
+  openSosModal();
+}
+function runCitizenStatus(sos){
+  const cs=document.getElementById('citizenStatus'); cs.classList.add('on');
+  ['cs1','cs2','cs3','cs4'].forEach(id=>document.getElementById(id).classList.remove('done'));
+  const steps=['cs1','cs2','cs3','cs4'];
+  const statuses=['Queued','Relaying','Delivered'];
+  let i=0;clearInterval(statusTimer);
+  statusTimer=setInterval(()=>{
+    document.getElementById(steps[i]).classList.add('done');
+    const hops=[0,1,3,3][i],status=i===3?(outage?'Queued for sync':'Synced'):statuses[i];
+    sos.hops=hops;sos.ttl=Math.max(0,7-hops);sos.status=status;
+    relayOverride={id:sos.id,packet:sos.packet,status,hops,ttl:sos.ttl,activeNodes:[1,3,4,outage?4:5][i]};
+    renderSosList();renderMeshDock();renderCtx();
+    i++;if(i>=steps.length)clearInterval(statusTimer);
+  },850);
+}
+
+/* ---------------- ASSISTANT ---------------- */
+let geminiApiKey='';
+function toggleAssist(){ document.getElementById('assistPanel').classList.toggle('on'); }
+function addMsg(text,who){ const m=document.getElementById('assistMsgs'); m.insertAdjacentHTML('beforeend',`<div class="msg ${who}">${escapeHtml(text)}</div>`); m.scrollTop=m.scrollHeight; return m.lastElementChild; }
+function connectGemini(){
+  const key=document.getElementById('geminiKey').value.trim();
+  if(!key){document.getElementById('geminiStatus').textContent='Paste a Gemini API key to enable Gemini answers.';return;}
+  geminiApiKey=key;document.getElementById('geminiKey').value='';
+  document.getElementById('geminiStatus').textContent='Gemini enabled for this tab only.';
+}
+function forgetGemini(){geminiApiKey='';document.getElementById('geminiKey').value='';document.getElementById('geminiStatus').textContent='Key cleared. Local answers remain available.';}
+async function geminiAnswer(question){
+  const incidents=sosData.filter(s=>s.priority!=='resolved').map(s=>`${s.id}: ${s.title}; ${s.loc}; ${s.priority}; ${s.status}; ${s.hops} hops`).join('\n');
+  const response=await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent',{
+    method:'POST',headers:{'Content-Type':'application/json','x-goog-api-key':geminiApiKey},
+    body:JSON.stringify({systemInstruction:{parts:[{text:'You are Relay, an emergency coordination demo assistant. Use only the supplied simulated scenario context. Clearly say when values are simulated; never claim to dispatch responders or verify a real emergency. Be concise.'}]},contents:[{role:'user',parts:[{text:`Scenario: Mangaluru flood response demo. Real place references: Ullal, Nethravathi River, Kadri Hills, NH-66, Wenlock District Hospital, Surathkal, and District Collector Office. All incident, road, hospital-capacity, resource-availability, and ETA values below are simulated.\n${incidents}\nQuestion: ${question}`}]}],generationConfig:{temperature:.2,maxOutputTokens:220}})
+  });
+  const payload=await response.json();
+  if(!response.ok)throw new Error(payload.error?.message||'Gemini request failed');
+  const answer=payload.candidates?.[0]?.content?.parts?.map(part=>part.text||'').join('').trim();
+  if(!answer)throw new Error('Gemini returned no answer');
+  return answer;
+}
+async function answerAssist(question){
+  const pending=addMsg(geminiApiKey?'Asking Gemini about the simulated incident…':'Checking local scenario data…','bot');
+  try{pending.textContent=geminiApiKey?await geminiAnswer(question):assistReply(question);}
+  catch{pending.textContent=`Gemini is unavailable. Local scenario answer: ${assistReply(question)}`;document.getElementById('geminiStatus').textContent='Gemini request failed; local answers are still working.';}
+}
+function assistReply(q){
+  q=q.toLowerCase();
+  if(q.includes('shelter')) return 'Scenario estimate: Ullal relief shelter, 84% capacity, 1.6km away. Capacity and distance are simulated.';
+  if(q.includes('hospital')||q.includes('bed')) return 'Wenlock District Hospital is the real-world location reference; available beds and distance are simulated.';
+  if(q.includes('road')||q.includes('block')) return 'Scenario feed: Ullal Beach Road near the Nethravathi overflow is marked blocked by 3 simulated nodes. An NH-66 alternate route is also simulated.';
+  if(q.includes('sos')||q.includes('status')||q.includes('hop')){ const relay=relayOverride&&relayOverride.id===selected.id?relayOverride:selected; return `${selected.id} is currently "${relay.status}" — ${relay.hops} relay hops so far, last seen via ${selected.trust.source}.`; }
+  if(q.includes('medical')||q.includes('help')) return 'For a medical emergency, use Raise SOS and mark "medical emergency" — this prioritizes ambulance matching automatically.';
+  if(q.includes('resource')) return 'Scenario resources: Ambulance 04 (1.8km, available), NDRF Field Vehicle in Surathkal, and Wenlock District Hospital. Availability and ETAs are simulated.';
+  return "I can help with shelters, hospital capacity, road status, resource availability, or the status of an SOS you've sent.";
+}
+function sendAssist(){
+  const inp=document.getElementById('assistInput'); const v=inp.value.trim(); if(!v)return;
+  addMsg(v,'user'); inp.value='';answerAssist(v);
+}
+function askAssist(q){ addMsg(q,'user');answerAssist(q); }
+
+/* ---------------- INIT ---------------- */
+renderSosList(); renderMap(); renderCtx(); renderMeshDock(); renderOverview();
+setInterval(()=>{if(currentRole==='responder'&&activeTab==='trust')renderCtx();},12000);
+</script>
+</body>
+</html>

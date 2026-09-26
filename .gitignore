@@ -1,0 +1,15 @@
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated output
+node_modules/
+dist/
+build/
+coverage/
+
+# Operating system and editor files
+.DS_Store
+Thumbs.db
+.vscode/

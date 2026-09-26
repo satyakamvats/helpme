@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>ResQMesh — Disconnected-First Disaster Coordination Infrastructure</title>
+  
+  <!-- Typography -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
+  
+  <!-- Modular Stylesheets -->
+  <link rel="stylesheet" href="css/main.css">
+  <link rel="stylesheet" href="css/console.css">
+  <link rel="stylesheet" href="css/mesh.css">
+  <link rel="stylesheet" href="css/citizen.css">
+  <link rel="stylesheet" href="css/assistant.css">
+  <link rel="stylesheet" href="css/modals.css">
+</head>
+<body>
+
+  <!-- ==================== TOP NAVIGATION HEADER ==================== -->
+  <header>
+    <div class="brand">
+      <span class="mark">R</span>
+      <span>ResQMesh</span>
+      <span class="brand-badge">DPI Core</span>
+    </div>
+    
+    <div class="pill ok" id="netPill">
+      <span class="d"></span>
+      <span class="txt">Mesh Connected</span>
+    </div>
+    
+    <div class="pill" id="syncPill">
+      <span class="txt mono">Last sync just now</span>
+    </div>
+    
+    <div class="header-actions">
+      <button class="pill" id="outageBtn">
+        <span class="txt">⚡ Simulate Outage</span>
+      </button>
+      
+      <button class="pill" id="demoBtn">
+        <span class="txt">▶ Run Demo</span>
+      </button>
+      
+      <button class="sound-toggle-btn on" id="soundToggleBtn" title="Toggle tactical audio alerts">
+        🔊 <span class="txt">Audio: On</span>
+      </button>
+    </div>
+
+    <div class="nav-spacer"></div>
+
+    <div class="role-switch">
+      <button class="on" id="roleResponder" onclick="setRole('responder')">Command Post</button>
+      <button id="roleCitizen" onclick="setRole('citizen')">Citizen Offline SOS</button>
+      <button id="roleMesh" onclick="setRole('mesh')">P2P Mesh View</button>
+    </div>
+
+    <button class="btn-sos" onclick="raiseDemoSos()">
+      <span class="p"></span>RAISE SOS
+    </button>
+  </header>
+
+  <!-- ==================== GUIDED HACKATHON DEMO BANNER ==================== -->
+  <div class="demo-guide" id="demoGuide" aria-live="polite">
+    <span class="demo-count" id="demoCount">DEMO STEP 1 / 5</span>
+    <span class="demo-copy" id="demoCopy"></span>
+    <button id="demoPause" onclick="DemoController.togglePause()">Pause</button>
+    <button class="primary" onclick="DemoController.advance()">Next Step</button>
+    <button onclick="DemoController.stop()">Close</button>
+  </div>
+
+  <!-- ==================== DISASTER COMMAND OVERVIEW STRIP ==================== -->
+  <div class="overview" id="overviewStrip">
+    <div class="ov-cell">
+      <b class="mono" style="color:var(--critical)">6</b>
+      <span>Active Incidents</span>
+    </div>
+    <div class="ov-cell">
+      <b class="mono" style="color:var(--info)">9</b>
+      <span>Available Responders</span>
+    </div>
+    <div class="ov-cell">
+      <b class="mono" style="color:var(--warn)">14</b>
+      <span>Community Assets</span>
+    </div>
+    <div class="ov-cell">
+      <b class="mono" style="color:var(--ok)">94%</b>
+      <span>Mesh Resilience</span>
+    </div>
+    <div class="ov-cell">
+      <b class="mono">Mangaluru · Ullal</b>
+      <span>Scenario District · coastal zone</span>
+    </div>
+    <div class="ov-cell">
+      <b class="mono" id="ovSync">Just now</b>
+      <span>Event-sourced sync</span>
+    </div>
+  </div>
+
+  <!-- ==================== MAIN 3-COLUMN OPERATIONS CONSOLE ==================== -->
+  <main class="app" id="mainApp">
+    
+    <!-- LEFT COLUMN: INCIDENT QUEUE -->
+    <section class="sos-panel" aria-label="Incident queue">
+      <div class="panel-head">
+        <h3>Incident Queue</h3>
+        <span class="mono" style="font-size:11px; color:var(--ink-dim)">6 open</span>
+      </div>
+      <div class="filters" id="filters">
+        <button class="filter-chip on" data-f="all" onclick="setFilter('all')">All</button>
+        <button class="filter-chip" data-f="critical" onclick="setFilter('critical')">Critical</button>
+        <button class="filter-chip" data-f="high" onclick="setFilter('high')">High</button>
+        <button class="filter-chip" data-f="medium" onclick="setFilter('medium')">Medium</button>
+        <button class="filter-chip" data-f="resolved" onclick="setFilter('resolved')">Resolved</button>
+      </div>
+      <div class="sos-scroll" id="sosScroll"></div>
+    </section>
+
+    <!-- CENTER COLUMN: TACTICAL MAP -->
+    <section class="map-wrap" id="mapWrap" aria-label="Tactical map">
+      <div id="tacticalMap" role="application" aria-label="OpenStreetMap view of Mangaluru response locations"></div>
+      <div class="map-toolbar">
+        <button class="map-btn" onclick="ResQState.toggleRoadBlocked()" title="Simulate debris or flash flood obstruction on Ullal Road">
+          ⚡ Toggle Road Obstruction
+        </button>
+      </div>
+      
+      <svg id="mapFallbackOverlay" viewBox="0 0 100 100" preserveAspectRatio="none">
+        <defs>
+          <pattern id="grid" width="6" height="6" patternUnits="userSpaceOnUse">
+            <path d="M6 0H0V6" fill="none" stroke="#161B26" stroke-width="0.3"/>
+          </pattern>
+        </defs>
+        <rect width="100" height="100" fill="url(#grid)"/>
+        
+        <!-- Primary Transport Corridors (NH-66 & Coastal Highway) -->
+        <path d="M6 30 L34 26 L58 20 L88 12" fill="none" stroke="#31394C" stroke-width="0.8" stroke-linecap="round"/>
+        <path d="M14 86 L46 56 L64 32 L84 15" fill="none" stroke="#31394C" stroke-width="0.8" stroke-linecap="round"/>
+        
+        <!-- Ullal Bypass Road (Dynamic flood status) -->
+        <path id="bypassRoadSvg" d="M34 26 L40 21" fill="none" stroke="var(--warn)" stroke-width="1.2" stroke-linecap="round" stroke-dasharray="1.6 1.6"/>
+        
+        <!-- Active BLE Mesh Radio Relays -->
+        <line x1="36" y1="44" x2="30" y2="37" stroke="var(--accent)" stroke-width="0.6" stroke-dasharray="2 1.6">
+          <animate attributeName="stroke-dashoffset" from="0" to="-7" dur="1.4s" repeatCount="indefinite"/>
+        </line>
+        <line x1="36" y1="44" x2="62" y2="19" stroke="var(--accent)" stroke-width="0.6" stroke-dasharray="2 1.6">
+          <animate attributeName="stroke-dashoffset" from="0" to="-7" dur="1.4s" repeatCount="indefinite"/>
+        </line>
+        
+        <!-- River Boundary -->
+        <path d="M4 77 C18 72 17 60 31 57 S44 47 49 34" fill="none" stroke="#255D75" stroke-width="1.6" stroke-linecap="round" opacity="0.8"/>
+        
+        <!-- Landmark Labels -->
+        <g fill="#7A899C" font-family="JetBrains Mono" font-size="2.6">
+          <text x="4" y="81">NETHRAVATHI RIVER</text>
+          <text x="12" y="66">ULLAL</text>
+          <text x="45" y="42">WENLOCK HOSPITAL</text>
+          <text x="68" y="15">SURATHKAL</text>
+          <text x="55" y="72">NH-66</text>
+          <text x="79" y="49">COLLECTOR HQ</text>
+        </g>
+      </svg>
+      
+      <div id="mapMarkers"></div>
+      
+      <div class="map-top-stat">
+        <span class="d"></span>
+        <span>Mangaluru Coastal Command Grid</span>
+      </div>
+      
+      <div class="legend">
+        <div class="lk"><span class="sw" style="background:var(--critical)"></span>SOS Incident</div>
+        <div class="lk"><span class="sw" style="background:var(--info)"></span>Ambulance / Hospital</div>
+        <div class="lk"><span class="sw" style="background:var(--warn)"></span>Shelter / Blocked Road</div>
+        <div class="lk"><span class="sw" style="background:var(--accent)"></span>BLE Mesh Relay Peer</div>
+      </div>
+    </section>
+
+    <!-- RIGHT COLUMN: CONTEXT & DECISION SUPPORT -->
+    <section class="ctx-panel" aria-label="Incident context and matching">
+      <div class="ctx-tabs">
+        <button class="on" data-t="trust" onclick="setTab('trust')">Trust & Provenance</button>
+        <button data-t="match" onclick="setTab('match')">Resource Match</button>
+        <button data-t="graph" onclick="setTab('graph')">Knowledge Graph</button>
+      </div>
+      <div class="ctx-body" id="ctxBody"></div>
+    </section>
+  </main>
+
+  <!-- ==================== P2P MESH SIMULATOR SCREEN ==================== -->
+  <section class="mesh-view" id="meshView" aria-label="Peer-to-peer mesh simulation">
+    <div class="mesh-view-head">
+      <div>
+        <h2>Delay-Tolerant Networking (DTN) Simulator</h2>
+        <p>Hop-by-hop packet propagation across disconnected BLE & Wi-Fi peers in Mangaluru.</p>
+      </div>
+      <div class="mesh-controls">
+        <button onclick="toggleOutage()">Simulate Flood Outage</button>
+        <button onclick="MeshSimulator.sendDuplicate()">Test Duplicate Dropping (Bloom Filter)</button>
+        <button onclick="MeshSimulator.restoreLink()">Restore Uplink</button>
+      </div>
+    </div>
+    
+    <div class="mesh-workspace">
+      <div class="mesh-route-panel">
+        <svg class="mesh-route" viewBox="0 0 760 250" role="img" aria-label="Hop by hop relay route">
+          <path class="route-coast" d="M25 203 C110 177 91 143 175 148 S260 87 320 100 S440 48 520 67 S624 22 735 37"/>
+          <path class="route-road" d="M30 215 C133 171 177 181 265 130 S411 107 500 76 S621 56 727 30"/>
+          <path class="route-link" id="routeLink" d="M70 196 C165 170 215 153 312 122 S444 98 542 70 S650 48 710 34"/>
+          
+          <circle class="route-packet" id="routePacket" r="6" cx="70" cy="196">
+            <animateMotion id="packetMotion" dur="12s" repeatCount="indefinite" path="M0 0 C95 -26 145 -43 242 -74 S374 -98 472 -126 S580 -148 640 -162"/>
+          </circle>
+          
+          <g class="route-stop is-active" data-hop="0" transform="translate(70 196)">
+            <circle r="12"/><text y="30">Ullal</text>
+          </g>
+          <g class="route-stop" data-hop="1" transform="translate(225 153)">
+            <circle r="12"/><text y="30">Neha · BLE</text>
+          </g>
+          <g class="route-stop" data-hop="2" transform="translate(385 106)">
+            <circle r="12"/><text y="30">Volunteer Bike</text>
+          </g>
+          <g class="route-stop" data-hop="3" transform="translate(550 68)">
+            <circle r="12"/><text y="30">NDRF · Surathkal</text>
+          </g>
+          <g class="route-stop" data-hop="4" transform="translate(710 34)">
+            <circle r="12"/><text y="30">Collector HQ</text>
+          </g>
+        </svg>
+
+        <div class="mesh-step-info" aria-live="polite">
+          <span id="meshStepCount" class="mono">HOP 1 / 5</span>
+          <span id="meshNarration">Victim smartphone in Ullal creates signed Ed25519 SOS packet.</span>
+        </div>
+
+        <div class="mesh-playback">
+          <button onclick="MeshSimulator.restart()">Restart Relay</button>
+          <button id="meshPlayButton" onclick="MeshSimulator.toggle()">Pause</button>
+          <button class="primary" onclick="MeshSimulator.advance()">Next Hop</button>
+        </div>
+
+        <div class="mesh-node-list" id="meshNodeList"></div>
+      </div>
+
+      <aside class="mesh-log-panel">
+        <div class="mesh-log-head">
+          <b>Real-time DTN Packet Log</b>
+          <span class="mono">EVENT STREAM</span>
+        </div>
+        <div class="mesh-log" id="meshLog" aria-live="polite"></div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- ==================== BOTTOM MESH STATUS DOCK ==================== -->
+  <div class="mesh-dock" id="meshDock">
+    <div class="flow-node active"><span class="fn-dot"></span><span>Victim · Ullal</span></div>
+    <div class="flow-track"><div class="fdot"></div></div>
+    <div class="flow-node"><span class="fn-dot"></span><span>Neha · BLE</span></div>
+    <div class="flow-track"><div class="fdot" style="animation-delay:-0.5s"></div></div>
+    <div class="flow-node"><span class="fn-dot"></span><span>Volunteer Bike</span></div>
+    <div class="flow-track"><div class="fdot" style="animation-delay:-1s"></div></div>
+    <div class="flow-node"><span class="fn-dot"></span><span>NDRF · Surathkal</span></div>
+    <div class="flow-track"><div class="fdot" style="animation-delay:-1.5s"></div></div>
+    <div class="flow-node"><span class="fn-dot"></span><span>Collector HQ</span></div>
+    
+    <div class="mesh-meta">
+      <div>Packet <b class="mono" id="mPacket">0x8F9A2</b></div>
+      <div>Hops <b class="mono" id="mHops">3</b></div>
+      <div>TTL <b class="mono" id="mTtl">7</b></div>
+      <div>Status <b class="mono" style="color:var(--warn)" id="mStatus">Relaying</b></div>
+    </div>
+  </div>
+
+  <!-- ==================== CITIZEN OFFLINE PWA VIEW ==================== -->
+  <div class="citizen-view" id="citizenView">
+    <div class="c-header-tag">Disconnected-First Digital Public Infrastructure</div>
+    <h2 class="c-title">Emergency Assistance</h2>
+    <p class="c-sub">Demo simulation: your SOS is signed locally with Web Crypto and queued in this tab, then shown relaying hop-by-hop through named BLE peers.</p>
+    
+    <button class="c-sos-btn" onclick="submitCitizenSos()">
+      <b>SEND OFFLINE SOS</b>
+      <span>Simulated Peer-to-Peer Broadcast</span>
+    </button>
+
+    <div class="c-field">
+      <label>Emergency Category</label>
+      <div class="chip-select" id="typeChips">
+        <button class="on" onclick="pickChip(this)">Flood</button>
+        <button onclick="pickChip(this)">Medical</button>
+        <button onclick="pickChip(this)">Trapped</button>
+        <button onclick="pickChip(this)">Fire</button>
+        <button onclick="pickChip(this)">Other</button>
+      </div>
+    </div>
+
+    <div class="c-field">
+      <label>GPS Location</label>
+      <button class="c-loc-btn" id="locBtn" onclick="shareLocation()">
+        <span>Share Device Coordinates</span>
+        <span id="locStatus" class="mono">Tap to acquire</span>
+      </button>
+    </div>
+
+    <div class="c-field">
+      <label>Number of People Affected</label>
+      <input type="number" value="1" min="1" id="peopleCount">
+    </div>
+
+    <div class="c-field">
+      <label class="c-check">
+        <input type="checkbox" id="medFlag"> Includes urgent medical / oxygen emergency
+      </label>
+    </div>
+
+    <div class="c-field">
+      <label>Brief Operational Notes</label>
+      <textarea placeholder="e.g. Water entering first floor, elderly person with mobility restriction…"></textarea>
+    </div>
+
+    <button class="c-submit" onclick="submitCitizenSos()">Broadcast SOS Over Mesh</button>
+
+    <div class="c-status" id="citizenStatus">
+      <h5>Hop-by-hop Relay Status</h5>
+      <div class="step" id="cs1"><span class="sd">✓</span>Ed25519 signed & queued in this tab (demo)</div>
+      <div class="step" id="cs2"><span class="sd">✓</span>Simulated BLE peer relay: Citizen → Neha's phone</div>
+      <div class="step" id="cs3"><span class="sd">✓</span>Simulated relay: Volunteer Bike → NDRF Surathkal</div>
+      <div class="step" id="cs4"><span class="sd">✓</span>Simulated sync to District Collector HQ</div>
+    </div>
+  </div>
+
+  <!-- ==================== AI DISASTER ASSISTANT ==================== -->
+  <button class="assist-fab" onclick="RelayAssistant.toggle()" title="Open Relay Operational Assistant">◎</button>
+  
+  <div class="assist-panel" id="assistPanel">
+    <div class="assist-head">
+      <div class="assist-head-title">
+        <span class="ad"></span>
+        <span>Relay · Disaster Operational Assistant</span>
+      </div>
+      <button class="assist-close-btn" onclick="RelayAssistant.close()">✕</button>
+    </div>
+    
+    <div class="assist-msgs" id="assistMsgs">
+      <div class="msg bot">
+        Operational Assistant initialized. Ask about SOS incidents, hospital beds, shelter capacities, road blockages, or resource assignments in Mangaluru.
+      </div>
+    </div>
+    
+    <div class="assist-chips">
+      <button onclick="RelayAssistant.ask('nearest shelter')">Nearest Shelter</button>
+      <button onclick="RelayAssistant.ask('hospital capacity')">Hospital Capacity</button>
+      <button onclick="RelayAssistant.ask('road blocked')">Road Status</button>
+      <button onclick="RelayAssistant.ask('sos status')">SOS Status</button>
+    </div>
+    
+    <details class="assist-config">
+      <summary>Connect Google Gemini (Optional)</summary>
+      <div class="config-row">
+        <input id="geminiKey" type="password" autocomplete="off" placeholder="Paste Gemini API key">
+        <button onclick="RelayAssistant.setApiKey(document.getElementById('geminiKey').value)">Save</button>
+        <button onclick="RelayAssistant.clearApiKey()">Reset</button>
+      </div>
+      <span class="config-note" id="geminiStatus">
+        Local answers work offline. Browser Gemini is demo-only; never enter a production key.
+      </span>
+    </details>
+    
+    <div class="assist-input">
+      <input id="assistInput" placeholder="Ask about resources, roads, incidents…" onkeydown="if(event.key==='Enter'){RelayAssistant.ask(this.value);this.value='';}">
+      <button onclick="const inp=document.getElementById('assistInput');RelayAssistant.ask(inp.value);inp.value='';">Send</button>
+    </div>
+  </div>
+
+  <!-- ==================== GENERIC MODAL WRAPPER ==================== -->
+  <div class="modal-bg" id="genericModalBg">
+    <div class="modal modal-wide" id="genericModalContent"></div>
+  </div>
+
+  <!-- ==================== MODULAR JAVASCRIPT BUNDLES ==================== -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="js/bloom-filter.js"></script>
+  <script src="js/audio.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/state.js"></script>
+  <script src="js/trust-engine.js"></script>
+  <script src="js/resource-matcher.js"></script>
+  <script src="js/knowledge-graph.js"></script>
+  <script src="js/cap-alert.js"></script>
+  <script src="js/crypto-inspector.js"></script>
+  <script src="js/mesh-simulator.js"></script>
+  <script src="js/demo-controller.js"></script>
+  <script src="js/assistant.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
