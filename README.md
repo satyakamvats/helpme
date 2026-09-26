@@ -6,6 +6,8 @@ Disconnected-first emergency coordination prototype for a simulated Mangaluru co
 
 Open `index.html` in a current Chromium-based browser. There is no build step. The OpenStreetMap basemap and optional Gemini assistant need internet access; the map falls back to a labeled scenario grid if Leaflet or map tiles are unavailable.
 
+Live demo: <https://supreetvardhamane.github.io/resqlens/>
+
 For a local web server, run `python -m http.server 8000` from this directory and open `http://localhost:8000`.
 
 ## Demo Flow
