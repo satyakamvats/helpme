@@ -611,7 +611,7 @@ async function submitCitizenSos() {
   }
   ResQState.addSos(newSos);
   const peerState = window.PeerMesh?.getState?.();
-  const isLiveVictim = peerState?.role === 'victim' && Boolean(window.Peer);
+  const isLiveVictim = peerState?.role === 'victim' && Boolean(window.PeerMesh?.isLive?.());
   if (isLiveVictim) {
     await window.PeerMesh.sendIncident(newSos);
     showAppToast(`${newSos.id} signed and queued for the live relay.`);
@@ -667,7 +667,7 @@ async function submitCitizenSos() {
 
 async function raiseDemoSos() {
   const peerState = window.PeerMesh?.getState?.();
-  if (window.Peer && peerState?.role === 'command') {
+  if (window.PeerMesh?.isLive?.() && peerState?.role === 'command') {
     showAppToast('For a live relay, submit the SOS from the Victim phone QR code.');
     return null;
   }
@@ -720,9 +720,11 @@ async function initializeResQMesh() {
 
   window.addEventListener('online', refreshConnectivityStatus);
   window.addEventListener('offline', refreshConnectivityStatus);
+  // Join the live mission immediately. Storage restoration can be slow on phones,
+  // and must never delay the Victim → Relay → Safety Point connection.
+  window.PeerMesh?.mount();
   await restoreSavedIncidents();
   renderAll();
-  window.PeerMesh?.mount();
 
   Promise.all(ResQState.get().sosData.map(s => window.CryptoInspector.signIncident(s))).then(signatures => {
     ResQState.get().sosData.forEach((s, index) => {

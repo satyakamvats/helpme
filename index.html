@@ -200,9 +200,9 @@
   <section class="mesh-view" id="meshView" aria-label="Peer-to-peer mesh simulation">
     <div class="mesh-view-head">
       <div>
-        <span class="eyebrow" id="meshModeLabel">LIVE WEBRTC</span>
+        <span class="eyebrow" id="meshModeLabel">LIVE RELAY</span>
         <h2>Peer-to-peer SOS relay</h2>
-        <p>Each hop below is a real browser data channel when this app is served with <span class="mono">npm run demo</span>.</p>
+        <p>Each hop below is a live delivery between the three devices. It works from any internet connection.</p>
       </div>
       <div class="mesh-controls">
         <button id="meshReplayButton">Open visual replay fallback</button>
@@ -425,6 +425,7 @@
   <!-- ==================== MODULAR JAVASCRIPT BUNDLES ==================== -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/vendor/peerjs.min.js"></script>
+  <script src="/live-relay/socket.io.js"></script>
   <script src="js/bloom-filter.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
@@ -437,6 +438,7 @@
   <script src="js/cap-alert.js"></script>
   <script src="js/crypto-inspector.js"></script>
   <script src="js/peer-mesh.js?v=live-retry-2"></script>
+  <script src="js/live-relay.js?v=socket-relay-1"></script>
   <script src="js/mesh-simulator.js"></script>
   <script src="js/demo-controller.js"></script>
   <script src="js/assistant.js"></script>

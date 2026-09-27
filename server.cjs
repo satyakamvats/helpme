@@ -4,6 +4,7 @@ const path = require('node:path');
 const express = require('express');
 const QRCode = require('qrcode');
 const { ExpressPeerServer } = require('peer');
+const { Server } = require('socket.io');
 
 const app = express();
 const server = http.createServer(app);
@@ -30,6 +31,42 @@ app.get('/qr', async (req, res, next) => {
 
 const peerServer = ExpressPeerServer(server, { path: '/', allow_discovery: false, proxied: false });
 app.use('/peerjs', peerServer);
+const io = new Server(server, { path: '/live-relay', cors: { origin: true, methods: ['GET', 'POST'] } });
+
+function roomPresence(room) {
+  const counts = { victim: 0, relay: 0, command: 0 };
+  for (const socket of io.sockets.sockets.values()) {
+    if (socket.data.room === room && counts[socket.data.role] !== undefined) counts[socket.data.role] += 1;
+  }
+  return counts;
+}
+
+function emitPresence(room) {
+  io.to(room).emit('mission:presence', roomPresence(room));
+}
+
+io.on('connection', socket => {
+  socket.on('mission:join', ({ room, role } = {}) => {
+    const validRoom = String(room || '').replace(/[^a-z0-9-]/gi, '').slice(0, 32);
+    if (!validRoom || !['victim', 'relay', 'command'].includes(role)) return;
+    if (socket.data.room) socket.leave(socket.data.room);
+    socket.data.room = validRoom;
+    socket.data.role = role;
+    socket.join(validRoom);
+    socket.emit('mission:joined', { room: validRoom, role });
+    emitPresence(validRoom);
+  });
+  socket.on('sos:send', envelope => {
+    if (socket.data.role === 'victim' && socket.data.room) io.to(socket.data.room).emit('relay:receive', envelope);
+  });
+  socket.on('relay:forward', envelope => {
+    if (socket.data.role === 'relay' && socket.data.room) io.to(socket.data.room).emit('command:receive', envelope);
+  });
+  socket.on('command:ack', ack => {
+    if (socket.data.role === 'command' && socket.data.room) io.to(socket.data.room).emit('delivery:ack', ack);
+  });
+  socket.on('disconnect', () => { if (socket.data.room) emitPresence(socket.data.room); });
+});
 app.use(express.static(root, { extensions: ['html'], index: 'index.html' }));
 
 app.use((error, _req, res, _next) => {
