@@ -5,7 +5,8 @@ const PeerMesh = (() => {
   const roleToScreen = { victim: 'citizen', relay: 'mesh', command: 'responder' };
   const state = {
     room: 'judge-demo', role: 'command', peer: null, peerId: '', connections: new Map(),
-    events: [], packet: null, seen: new Set(), outbox: [], started: false, available: false
+    events: [], packet: null, seen: new Set(), outbox: [], started: false, available: false,
+    reconnectTimer: null, ackTimers: new Map()
   };
 
   const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -125,7 +126,11 @@ const PeerMesh = (() => {
       event(`Channel closed: ${connection.peer.replace(`resqmesh-${state.room}-`, '')}.`, 'warn');
       render();
     });
-    connection.on('error', error => event(`Channel error: ${error.type || error.message}.`, 'bad'));
+    connection.on('error', error => {
+      if (state.connections.get(connection.peer) === connection) state.connections.delete(connection.peer);
+      event(`Channel error: ${error.type || error.message}. Retrying automatically.`, 'warn');
+      render();
+    });
   }
 
   function connect(role) {
@@ -160,6 +165,18 @@ const PeerMesh = (() => {
     }
   }
 
+  function scheduleAckRetry(message) {
+    clearTimeout(state.ackTimers.get(message.messageId));
+    const retry = () => {
+      if (state.packet?.messageId !== message.messageId || state.packet?.status === 'delivered') return;
+      event(`${message.packetId} has no acknowledgement yet; retrying Safety Point.`, 'warn');
+      if (send(message, 'command')) {
+        state.ackTimers.set(message.messageId, setTimeout(retry, 2500));
+      }
+    };
+    state.ackTimers.set(message.messageId, setTimeout(retry, 2500));
+  }
+
   function flushOutbox() {
     const pending = state.outbox.slice();
     state.outbox = [];
@@ -186,6 +203,9 @@ const PeerMesh = (() => {
     if (!envelope.messageId || !envelope.incident) throw new Error('missing SOS packet fields');
     if (state.seen.has(envelope.messageId)) {
       event(`Duplicate ${envelope.packetId} dropped on this device.`, 'warn');
+      if (state.role === 'command') {
+        connection.send({ type: 'delivery-ack', messageId: envelope.messageId, packetId: envelope.packetId, route: state.packet?.route || envelope.route || [], ttl: state.packet?.ttl ?? envelope.ttl });
+      }
       return;
     }
     state.seen.add(envelope.messageId);
@@ -201,7 +221,10 @@ const PeerMesh = (() => {
       const forwarded = { ...envelope, ttl: nextTtl, route, currentRole: 'relay' };
       await window.OfflineStore?.saveIncident({ ...envelope.incident, status: 'Stored at relay', hops: route.length - 1, ttl: nextTtl, createdAt: Date.now() });
       connection.send({ type: 'receipt', messageId: envelope.messageId, packetId: envelope.packetId, stage: 'relay-received', route, ttl: nextTtl });
-      if (send(forwarded, 'command')) event(`${envelope.packetId} forwarded directly to Safety Point.`, 'good');
+      if (send(forwarded, 'command')) {
+        event(`${envelope.packetId} forwarded directly to Safety Point.`, 'good');
+        scheduleAckRetry(forwarded);
+      }
       return;
     }
 
@@ -221,6 +244,8 @@ const PeerMesh = (() => {
   }
 
   function receiveAck(message, connection) {
+    clearTimeout(state.ackTimers.get(message.messageId));
+    state.ackTimers.delete(message.messageId);
     setPacket({ packetId: message.packetId, messageId: message.messageId, route: message.route || [], ttl: message.ttl, currentRole: 'command' }, 'delivered');
     event(`${message.packetId} delivered to Safety Point.`, 'good');
     if (state.role === 'relay') {
@@ -255,6 +280,12 @@ const PeerMesh = (() => {
       if (next) connect(next);
       if (state.role === 'relay') connect('command');
       flushOutbox();
+      clearInterval(state.reconnectTimer);
+      state.reconnectTimer = setInterval(() => {
+        const nextRole = targetForCurrentRole();
+        if (nextRole) connect(nextRole);
+        if (state.role === 'relay') connect('command');
+      }, 3000);
       render();
     });
     state.peer.on('connection', bindConnection);
@@ -268,6 +299,10 @@ const PeerMesh = (() => {
   }
 
   function stop(renderAfter = true) {
+    clearInterval(state.reconnectTimer);
+    state.reconnectTimer = null;
+    state.ackTimers.forEach(timer => clearTimeout(timer));
+    state.ackTimers.clear();
     state.connections.forEach(connection => connection.close());
     state.connections.clear();
     if (state.peer) state.peer.destroy();
