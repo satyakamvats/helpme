@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resqmesh-shell-v10';
+const CACHE_NAME = 'resqmesh-shell-v11';
 const APP_FILES = [
   './',
   './index.html',

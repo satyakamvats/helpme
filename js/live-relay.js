@@ -7,6 +7,9 @@ const LiveRelay = (() => {
   const now = () => new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
   const safe = value => String(value || '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[char]));
   const log = (message, tone = 'neutral') => { state.events.unshift({ time: now(), message, tone }); state.events = state.events.slice(0, 30); render(); };
+  const send = (type, payload) => {
+    if (state.socket?.readyState === WebSocket.OPEN) state.socket.send(JSON.stringify({ type, payload }));
+  };
 
   function status() {
     if (!state.connected) return 'Connecting to live relay…';
@@ -60,7 +63,7 @@ const LiveRelay = (() => {
     packetState(forwarded, 'relay', 'forwarding');
     await window.OfflineStore?.saveIncident({ ...envelope.incident, status: 'Stored at relay', ttl: forwarded.ttl, createdAt: Date.now() });
     log(`${envelope.packetId} verified and forwarded to Safety Point.`, 'good');
-    state.socket.emit('relay:forward', forwarded);
+    send('relay:forward', forwarded);
   }
 
   async function commandReceive(envelope) {
@@ -73,23 +76,33 @@ const LiveRelay = (() => {
     await window.OfflineStore?.saveIncident(incident);
     packetState(delivered, 'command', 'delivered');
     log(`${envelope.packetId} reached Safety Point and entered the incident queue.`, 'good');
-    state.socket.emit('command:ack', { messageId: envelope.messageId, packetId: envelope.packetId, route: delivered.route, ttl: delivered.ttl });
+    send('command:ack', { messageId: envelope.messageId, packetId: envelope.packetId, route: delivered.route, ttl: delivered.ttl });
   }
 
   function start() {
-    if (state.socket) state.socket.disconnect();
+    if (state.socket) state.socket.close();
     state.connected = false;
-    state.socket = window.io({ path: '/live-relay', transports: ['websocket', 'polling'] });
-    state.socket.on('connect', () => { state.connected = true; state.socket.emit('mission:join', { room: state.room, role: state.role }); log(`Joined ${state.room} as ${labels[state.role]}.`, 'good'); });
-    state.socket.on('disconnect', () => { state.connected = false; render(); });
-    state.socket.on('mission:presence', presence => { state.presence = presence; render(); });
-    state.socket.on('relay:receive', relayReceive);
-    state.socket.on('command:receive', commandReceive);
-    state.socket.on('delivery:ack', ack => {
-      if (!state.packet || state.packet.messageId !== ack.messageId) return;
-      state.packet = { ...state.packet, route: ack.route, ttl: ack.ttl, currentRole: 'command', status: 'delivered' };
-      log(`${ack.packetId} delivery acknowledged by Safety Point.`, 'good');
-    });
+    const protocol = location.protocol === 'https:' ? 'wss' : 'ws';
+    state.socket = new WebSocket(`${protocol}://${location.host}/live`);
+    state.socket.onopen = () => {
+      state.connected = true;
+      send('mission:join', { room: state.room, role: state.role });
+      log(`Joined ${state.room} as ${labels[state.role]}.`, 'good');
+    };
+    state.socket.onclose = () => { state.connected = false; render(); };
+    state.socket.onmessage = async event => {
+      let message;
+      try { message = JSON.parse(event.data); } catch { return; }
+      const { type, payload } = message || {};
+      if (type === 'mission:presence') { state.presence = payload; render(); }
+      else if (type === 'relay:receive') await relayReceive(payload);
+      else if (type === 'command:receive') await commandReceive(payload);
+      else if (type === 'delivery:ack') {
+        if (!state.packet || state.packet.messageId !== payload.messageId) return;
+        state.packet = { ...state.packet, route: payload.route, ttl: payload.ttl, currentRole: 'command', status: 'delivered' };
+        log(`${payload.packetId} delivery acknowledged by Safety Point.`, 'good');
+      }
+    };
     render();
   }
 
@@ -98,7 +111,7 @@ const LiveRelay = (() => {
     const envelope = { messageId: crypto.randomUUID(), packetId: incident.packet, ttl: Number(incident.ttl || 7), incident, route: [{ role: 'victim', at: now() }] };
     state.seen.add(envelope.messageId);
     packetState(envelope, 'victim', 'sent');
-    state.socket.emit('sos:send', envelope);
+    send('sos:send', envelope);
     log(`${envelope.packetId} sent to the live relay.`, 'good');
     return true;
   }
@@ -126,7 +139,7 @@ const LiveRelay = (() => {
     start();
   }
 
-  return { mount, start, stop: () => state.socket?.disconnect(), sendIncident, render, chooseRole, getState: () => ({ ...state }), isLive: () => state.connected };
+  return { mount, start, stop: () => state.socket?.close(), sendIncident, render, chooseRole, getState: () => ({ ...state }), isLive: () => state.connected };
 })();
 
 window.PeerMesh = LiveRelay;

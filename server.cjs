@@ -3,8 +3,7 @@ const os = require('node:os');
 const path = require('node:path');
 const express = require('express');
 const QRCode = require('qrcode');
-const { ExpressPeerServer } = require('peer');
-const { Server } = require('socket.io');
+const { WebSocketServer, WebSocket } = require('ws');
 
 const app = express();
 const server = http.createServer(app);
@@ -29,43 +28,63 @@ app.get('/qr', async (req, res, next) => {
   }
 });
 
-const peerServer = ExpressPeerServer(server, { path: '/', allow_discovery: false, proxied: false });
-app.use('/peerjs', peerServer);
-const io = new Server(server, { path: '/live-relay', cors: { origin: true, methods: ['GET', 'POST'] } });
+const liveClients = new Set();
+const liveServer = new WebSocketServer({ noServer: true });
+server.prependListener('upgrade', (request, socket, head) => {
+  if (new URL(request.url, 'http://localhost').pathname !== '/live') return;
+  liveServer.handleUpgrade(request, socket, head, client => liveServer.emit('connection', client, request));
+});
 
 function roomPresence(room) {
   const counts = { victim: 0, relay: 0, command: 0 };
-  for (const socket of io.sockets.sockets.values()) {
-    if (socket.data.room === room && counts[socket.data.role] !== undefined) counts[socket.data.role] += 1;
+  for (const client of liveClients) {
+    if (client.data.room === room && counts[client.data.role] !== undefined) counts[client.data.role] += 1;
   }
   return counts;
 }
 
-function emitPresence(room) {
-  io.to(room).emit('mission:presence', roomPresence(room));
+function send(client, type, payload) {
+  if (client.readyState === WebSocket.OPEN) client.send(JSON.stringify({ type, payload }));
 }
 
-io.on('connection', socket => {
-  socket.on('mission:join', ({ room, role } = {}) => {
+function broadcast(room, type, payload) {
+  for (const client of liveClients) if (client.data.room === room) send(client, type, payload);
+}
+
+function emitPresence(room) {
+  broadcast(room, 'mission:presence', roomPresence(room));
+}
+
+liveServer.on('connection', client => {
+  client.data = {};
+  liveClients.add(client);
+  client.on('message', raw => {
+    let message;
+    try { message = JSON.parse(String(raw)); } catch { return; }
+    const { type, payload } = message || {};
+    if (type === 'mission:join') {
+      const { room, role } = payload || {};
     const validRoom = String(room || '').replace(/[^a-z0-9-]/gi, '').slice(0, 32);
     if (!validRoom || !['victim', 'relay', 'command'].includes(role)) return;
-    if (socket.data.room) socket.leave(socket.data.room);
-    socket.data.room = validRoom;
-    socket.data.role = role;
-    socket.join(validRoom);
-    socket.emit('mission:joined', { room: validRoom, role });
+    const previousRoom = client.data.room;
+    client.data.room = validRoom;
+    client.data.role = role;
+    if (previousRoom && previousRoom !== validRoom) emitPresence(previousRoom);
+    send(client, 'mission:joined', { room: validRoom, role });
     emitPresence(validRoom);
+    } else if (type === 'sos:send' && client.data.role === 'victim' && client.data.room) {
+      broadcast(client.data.room, 'relay:receive', payload);
+    } else if (type === 'relay:forward' && client.data.role === 'relay' && client.data.room) {
+      broadcast(client.data.room, 'command:receive', payload);
+    } else if (type === 'command:ack' && client.data.role === 'command' && client.data.room) {
+      broadcast(client.data.room, 'delivery:ack', payload);
+    }
   });
-  socket.on('sos:send', envelope => {
-    if (socket.data.role === 'victim' && socket.data.room) io.to(socket.data.room).emit('relay:receive', envelope);
+  client.on('close', () => {
+    const room = client.data.room;
+    liveClients.delete(client);
+    if (room) emitPresence(room);
   });
-  socket.on('relay:forward', envelope => {
-    if (socket.data.role === 'relay' && socket.data.room) io.to(socket.data.room).emit('command:receive', envelope);
-  });
-  socket.on('command:ack', ack => {
-    if (socket.data.role === 'command' && socket.data.room) io.to(socket.data.room).emit('delivery:ack', ack);
-  });
-  socket.on('disconnect', () => { if (socket.data.room) emitPresence(socket.data.room); });
 });
 app.use(express.static(root, { extensions: ['html'], index: 'index.html' }));
 
