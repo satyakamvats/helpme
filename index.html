@@ -8,7 +8,7 @@
   <!-- Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="">
   
   <!-- Modular Stylesheets -->
@@ -42,14 +42,17 @@
       <button class="pill" id="demoBtn">
         <span class="txt">Run Guided Demo</span>
       </button>
+      <button class="pill" onclick="openLiveSetup()">
+        <span class="txt">Set up live devices</span>
+      </button>
     </div>
 
     <div class="nav-spacer"></div>
 
     <div class="role-switch">
-      <button class="on" id="roleResponder" onclick="setRole('responder')">Command</button>
-      <button id="roleCitizen" onclick="setRole('citizen')">Report SOS</button>
-      <button id="roleMesh" onclick="setRole('mesh')">Relay</button>
+      <button class="on" id="roleResponder" onclick="PeerMesh.chooseRole('command')">Command</button>
+      <button id="roleCitizen" onclick="PeerMesh.chooseRole('victim')">Report SOS</button>
+      <button id="roleMesh" onclick="PeerMesh.chooseRole('relay')">Relay</button>
     </div>
 
     <button class="btn-sos" onclick="raiseDemoSos()">
@@ -85,6 +88,21 @@
       <span>Saved on this device</span>
     </div>
   </div>
+
+  <section class="command-live-banner" id="commandLiveBanner" aria-label="Live mesh delivery status">
+    <div class="command-live-copy">
+      <span class="eyebrow">Live LAN mission</span>
+      <b data-mesh-status>Ready to join this LAN mission</b>
+      <span class="mono">ROOM <strong data-mesh-room>judge-demo</strong> · PACKET <strong data-mesh-packet>No live packet yet</strong></span>
+    </div>
+    <div class="live-route compact" data-mesh-route>
+      <div class="live-device" data-live-hop="victim"><span class="device-icon">▯</span><b>Victim phone</b><small data-live-detail>Waiting</small></div>
+      <div class="live-link" aria-hidden="true"></div>
+      <div class="live-device" data-live-hop="relay"><span class="device-icon">▣</span><b>Volunteer relay</b><small data-live-detail>Waiting</small></div>
+      <div class="live-link" aria-hidden="true"></div>
+      <div class="live-device" data-live-hop="command"><span class="device-icon">⌂</span><b>Safety point</b><small data-live-detail>This device</small></div>
+    </div>
+  </section>
 
   <!-- ==================== MAIN 3-COLUMN OPERATIONS CONSOLE ==================== -->
   <main class="app" id="mainApp">
@@ -182,17 +200,43 @@
   <section class="mesh-view" id="meshView" aria-label="Peer-to-peer mesh simulation">
     <div class="mesh-view-head">
       <div>
-        <h2>Delay-Tolerant Networking (DTN) Simulator</h2>
-        <p>Hop-by-hop packet propagation across disconnected BLE & Wi-Fi peers in Mangaluru.</p>
+        <span class="eyebrow" id="meshModeLabel">LIVE WEBRTC</span>
+        <h2>Peer-to-peer SOS relay</h2>
+        <p>Each hop below is a real browser data channel when this app is served with <span class="mono">npm run demo</span>.</p>
       </div>
       <div class="mesh-controls">
-        <button onclick="toggleOutage()">Simulate Flood Outage</button>
-        <button onclick="MeshSimulator.sendDuplicate()">Test Duplicate Dropping (Bloom Filter)</button>
-        <button onclick="MeshSimulator.restoreLink()">Restore Uplink</button>
+        <button id="meshReplayButton">Open visual replay fallback</button>
       </div>
     </div>
+
+    <section class="mesh-live-hero" aria-label="Live peer mission control">
+      <div class="mesh-role-choice" role="group" aria-label="Choose this device role">
+        <button data-mesh-role-button="victim">Victim phone</button>
+        <button data-mesh-role-button="relay">Relay device</button>
+        <button data-mesh-role-button="command">Safety point</button>
+      </div>
+      <div class="mesh-join-row">
+        <label>Mission room <input id="meshRoomInput" value="judge-demo" maxlength="32" autocomplete="off"></label>
+        <button class="primary" id="meshJoinButton">Join live mission</button>
+        <span class="mesh-peer-id mono" data-mesh-peer>Not joined</span>
+      </div>
+      <div class="mesh-live-status"><span class="status-dot"></span><b data-mesh-status>Ready to join this LAN mission</b><span>Packet <strong class="mono" data-mesh-packet>No live packet yet</strong> · TTL <strong class="mono" data-mesh-ttl>—</strong></span></div>
+      <div class="live-route" data-mesh-route>
+        <div class="live-device" data-live-hop="victim"><span class="device-icon">▯</span><b>Victim phone</b><small data-live-detail>Waiting</small></div>
+        <div class="live-link" aria-hidden="true"></div>
+        <div class="live-device" data-live-hop="relay"><span class="device-icon">▣</span><b>Volunteer relay</b><small data-live-detail>Waiting</small></div>
+        <div class="live-link" aria-hidden="true"></div>
+        <div class="live-device" data-live-hop="command"><span class="device-icon">⌂</span><b>Safety point</b><small data-live-detail>Waiting</small></div>
+      </div>
+      <div class="mesh-share-grid">
+        <div><img id="victimQr" alt="QR code to open the victim role"><span>Victim phone</span></div>
+        <div><img id="relayQr" alt="QR code to open the relay role"><span>Relay device</span></div>
+        <p>Open the matching QR codes on two more devices connected to the same Wi-Fi or hotspot. The laptop stays on the Safety Point screen.</p>
+      </div>
+      <div class="mesh-live-events" data-mesh-event-log aria-live="polite"></div>
+    </section>
     
-    <div class="mesh-workspace">
+    <div class="mesh-workspace" id="meshReplay" aria-label="Visual replay fallback">
       <div class="mesh-route-panel">
         <svg class="mesh-route" viewBox="0 0 760 250" role="img" aria-label="Hop by hop relay route">
           <path class="route-coast" d="M25 203 C110 177 91 143 175 148 S260 87 320 100 S440 48 520 67 S624 22 735 37"/>
@@ -268,7 +312,20 @@
   <div class="citizen-view" id="citizenView">
     <div class="c-header-tag">Mangaluru · Offline demo</div>
     <h2 class="c-title">Report an emergency</h2>
-    <p class="c-sub">After this page loads once, reports save on this device even offline. Peer relay is simulated.</p>
+    <p class="c-sub">Reports stay on this device if a relay is unavailable. When the LAN mission is connected, this phone sends a signed SOS through the live relay.</p>
+
+    <section class="citizen-live-card" aria-label="Live relay status">
+      <span class="eyebrow">This device · victim phone</span>
+      <b data-mesh-status>Ready to join this LAN mission</b>
+      <div class="live-route compact" data-mesh-route>
+        <div class="live-device" data-live-hop="victim"><span class="device-icon">▯</span><b>Phone</b><small data-live-detail>This device</small></div>
+        <div class="live-link" aria-hidden="true"></div>
+        <div class="live-device" data-live-hop="relay"><span class="device-icon">▣</span><b>Relay</b><small data-live-detail>Waiting</small></div>
+        <div class="live-link" aria-hidden="true"></div>
+        <div class="live-device" data-live-hop="command"><span class="device-icon">⌂</span><b>Safety</b><small data-live-detail>Waiting</small></div>
+      </div>
+      <span class="mono">ROOM <strong data-mesh-room>judge-demo</strong> · <strong data-mesh-packet>No live packet yet</strong></span>
+    </section>
 
     <div class="c-field">
       <label>Emergency Category</label>
@@ -367,6 +424,7 @@
 
   <!-- ==================== MODULAR JAVASCRIPT BUNDLES ==================== -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
+  <script src="/vendor/peerjs.min.js"></script>
   <script src="js/bloom-filter.js"></script>
   <script src="js/audio.js"></script>
   <script src="js/data.js"></script>
@@ -378,6 +436,7 @@
   <script src="js/knowledge-graph.js"></script>
   <script src="js/cap-alert.js"></script>
   <script src="js/crypto-inspector.js"></script>
+  <script src="js/peer-mesh.js"></script>
   <script src="js/mesh-simulator.js"></script>
   <script src="js/demo-controller.js"></script>
   <script src="js/assistant.js"></script>

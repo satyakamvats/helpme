@@ -1,4 +1,4 @@
-const CACHE_NAME = 'resqmesh-shell-v7';
+const CACHE_NAME = 'resqmesh-shell-v8';
 const APP_FILES = [
   './',
   './index.html',
@@ -19,6 +19,7 @@ const APP_FILES = [
   './js/knowledge-graph.js',
   './js/cap-alert.js',
   './js/crypto-inspector.js',
+  './js/peer-mesh.js',
   './js/mesh-simulator.js',
   './js/demo-controller.js',
   './js/assistant.js',

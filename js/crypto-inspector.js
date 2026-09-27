@@ -61,9 +61,17 @@ const CryptoInspector = (() => {
   }
 
   async function verifyPayload(incident, payload) {
-    const pair = await getKeyPair();
     const publicKey = await crypto.subtle.importKey('raw', fromHex(incident.ed25519.pubkey), { name: 'Ed25519' }, false, ['verify']);
     return crypto.subtle.verify({ name: 'Ed25519' }, publicKey, fromHex(incident.ed25519.signature), encoder.encode(payload));
+  }
+
+  async function verifyIncident(incident) {
+    if (!incident?.ed25519?.pubkey || !incident.ed25519.signature || !incident.ed25519.payload) return false;
+    try {
+      return await verifyPayload(incident, incident.ed25519.payload);
+    } catch {
+      return false;
+    }
   }
 
   async function renderInspector(incident) {
@@ -114,7 +122,7 @@ const CryptoInspector = (() => {
     if (window.ResQAudio) valid ? ResQAudio.playPacketChirp() : ResQAudio.playAlertBeep();
   }
 
-  return { signIncident, renderInspector, toggleTamper };
+  return { signIncident, verifyIncident, renderInspector, toggleTamper };
 })();
 
 function escapeHtml(str) {

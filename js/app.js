@@ -402,9 +402,7 @@ function setRole(role) {
   document.getElementById('citizenView').classList.toggle('on', role === 'citizen');
   document.getElementById('meshView').classList.toggle('on', role === 'mesh');
 
-  if (role === 'mesh' && prev !== 'mesh') {
-    window.MeshSimulator.start();
-  }
+  // The visual route is a deliberate fallback, started only from its own control.
   if (prev === 'mesh' && role !== 'mesh') {
     window.MeshSimulator.stop();
   }
@@ -479,6 +477,22 @@ function openModal(contentHtml) {
 function closeModal() {
   const bg = document.getElementById('genericModalBg');
   if (bg) bg.classList.remove('on');
+}
+
+function openLiveSetup() {
+  const room = window.PeerMesh?.getState?.().room || 'judge-demo';
+  const root = `${location.protocol}//${location.host}`;
+  const victimUrl = `${root}/?role=victim&room=${encodeURIComponent(room)}`;
+  const relayUrl = `${root}/?role=relay&room=${encodeURIComponent(room)}`;
+  openModal(`
+    <div class="modal-header"><h4>Set up the live relay</h4><button class="modal-close" onclick="closeModal()">✕</button></div>
+    <p class="sub">Keep this laptop on <b>Command / Safety Point</b>. Connect all three devices to the same Wi-Fi or hotspot, then open one link on each additional device.</p>
+    <div class="live-setup-links">
+      <a href="${escapeHtml(victimUrl)}"><img src="/qr?role=victim&room=${encodeURIComponent(room)}" alt="Victim phone QR"><span><b>Victim phone</b><small>${escapeHtml(victimUrl)}</small></span></a>
+      <a href="${escapeHtml(relayUrl)}"><img src="/qr?role=relay&room=${encodeURIComponent(room)}" alt="Relay device QR"><span><b>Relay device</b><small>${escapeHtml(relayUrl)}</small></span></a>
+    </div>
+    <p class="sub" style="margin-top:14px">When the Command banner says <b>Relay device connected</b>, create the SOS on the victim phone. Use visual replay only if the event trail cannot show a live connection.</p>
+  `);
 }
 
 async function openCryptoModal() {
@@ -596,6 +610,14 @@ async function submitCitizenSos() {
     storageFailed = true;
   }
   ResQState.addSos(newSos);
+  const peerState = window.PeerMesh?.getState?.();
+  const isLiveVictim = peerState?.role === 'victim' && Boolean(window.Peer);
+  if (isLiveVictim) {
+    await window.PeerMesh.sendIncident(newSos);
+    showAppToast(`${newSos.id} signed and queued for the live relay.`);
+    if (window.ResQAudio) window.ResQAudio.playAlertBeep();
+    return newSos;
+  }
   if (ResQState.get().currentRole === 'citizen') setRole('responder');
   showAppToast(storageFailed
     ? `${newSos.id} is only in this open page; browser storage failed.`
@@ -644,6 +666,11 @@ async function submitCitizenSos() {
 }
 
 async function raiseDemoSos() {
+  const peerState = window.PeerMesh?.getState?.();
+  if (window.Peer && peerState?.role === 'command') {
+    showAppToast('For a live relay, submit the SOS from the Victim phone QR code.');
+    return null;
+  }
   const button = document.querySelector('.btn-sos');
   if (button?.disabled) return;
   if (button) button.disabled = true;
@@ -695,6 +722,7 @@ async function initializeResQMesh() {
   window.addEventListener('offline', refreshConnectivityStatus);
   await restoreSavedIncidents();
   renderAll();
+  window.PeerMesh?.mount();
 
   Promise.all(ResQState.get().sosData.map(s => window.CryptoInspector.signIncident(s))).then(signatures => {
     ResQState.get().sosData.forEach((s, index) => {
