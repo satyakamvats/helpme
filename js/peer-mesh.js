@@ -261,10 +261,15 @@ const PeerMesh = (() => {
     if (message.type === 'delivery-ack') return receiveAck(message, connection);
   }
 
-  function start() {
+  function start(forceRestart = false) {
     if (!window.Peer) {
       state.available = false;
       event('Live relay needs the local demo server. Open this page through npm run demo.', 'warn');
+      return;
+    }
+    if (state.started && !forceRestart) {
+      event('This device is already joined to the live mission.', 'good');
+      render();
       return;
     }
     stop(false);
@@ -332,18 +337,27 @@ const PeerMesh = (() => {
     history.replaceState({}, '', `${location.pathname}?${query}`);
     state.role = role;
     if (typeof window.setRole === 'function') window.setRole(roleToScreen[role]);
-    start();
+    start(true);
   }
 
   function setRoom() {
     const input = document.getElementById('meshRoomInput');
     const nextRoom = (input?.value || '').replace(/[^a-z0-9-]/gi, '').slice(0, 32);
-    if (!nextRoom || nextRoom === state.room) return start();
+    if (!nextRoom) return;
+    if (nextRoom === state.room) {
+      if (state.started) {
+        event(`Already joined to room ${state.room}; keeping the active connection.`, 'good');
+        render();
+      } else {
+        start();
+      }
+      return;
+    }
     state.room = nextRoom;
     const query = new URLSearchParams(location.search);
     query.set('role', state.role); query.set('room', state.room);
     history.replaceState({}, '', `${location.pathname}?${query}`);
-    state.packet = null; state.events = []; start();
+    state.packet = null; state.events = []; start(true);
   }
 
   function mount() {
